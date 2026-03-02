@@ -1,0 +1,40 @@
+{
+  "name": "cipi/agent",
+  "description": "Cipi Agent for Laravel — webhook deploy, health check, and server integration",
+  "keywords": [
+    "laravel",
+    "cipi",
+    "deploy",
+    "webhook",
+    "server",
+    "panel"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Andrea Pollastri",
+      "email": "andrea@pollastri.dev",
+      "homepage": "https://web.ap.it"
+    }
+  ],
+  "require": {
+    "php": "^8.1",
+    "illuminate/support": "^10.0|^11.0|^12.0",
+    "illuminate/routing": "^10.0|^11.0|^12.0",
+    "illuminate/console": "^10.0|^11.0|^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Cipi\\Agent\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Cipi\\Agent\\Providers\\CipiAgentServiceProvider"
+      ]
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
