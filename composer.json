@@ -1,19 +1,20 @@
 {
-  "name": "cipi/agent",
+  "name": "andreapollastri/agent",
   "description": "Cipi Agent for Laravel — webhook deploy, health check, and server integration",
   "keywords": [
-    "laravel",
     "cipi",
+    "laravel",
     "deploy",
-    "webhook",
+    "cli",
+    "php",
+    "lemp",
     "server",
-    "panel"
+    "linux"
   ],
   "license": "MIT",
   "authors": [
     {
       "name": "Andrea Pollastri",
-      "email": "andrea@pollastri.dev",
       "homepage": "https://web.ap.it"
     }
   ],
