@@ -4,7 +4,6 @@ namespace Cipi\Agent\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis;
 
 class CipiStatusCommand extends Command
 {
@@ -45,13 +44,6 @@ class CipiStatusCommand extends Command
             $this->components->twoColumnDetail('Database', '<fg=green>✓ connected</>');
         } catch (\Throwable $e) {
             $this->components->twoColumnDetail('Database', '<fg=red>✗ ' . $e->getMessage() . '</>');
-        }
-
-        try {
-            Redis::connection()->ping();
-            $this->components->twoColumnDetail('Redis', '<fg=green>✓ connected</>');
-        } catch (\Throwable $e) {
-            $this->components->twoColumnDetail('Redis', '<fg=red>✗ ' . $e->getMessage() . '</>');
         }
 
         return self::SUCCESS;

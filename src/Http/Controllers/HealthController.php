@@ -7,7 +7,6 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Redis;
 
 class HealthController extends Controller
 {
@@ -16,7 +15,6 @@ class HealthController extends Controller
         $checks = [
             'app' => $this->checkApp(),
             'database' => $this->checkDatabase(),
-            'redis' => $this->checkRedis(),
             'cache' => $this->checkCache(),
             'queue' => $this->checkQueue(),
         ];
@@ -54,16 +52,6 @@ class HealthController extends Controller
         }
     }
 
-    protected function checkRedis(): array
-    {
-        try {
-            $result = Redis::connection()->ping();
-            return ['ok' => $result === true || $result === 'PONG' || $result->getPayload() === 'PONG'];
-        } catch (\Throwable $e) {
-            return ['ok' => false, 'error' => $e->getMessage()];
-        }
-    }
-
     protected function checkCache(): array
     {
         try {
@@ -80,7 +68,7 @@ class HealthController extends Controller
     protected function checkQueue(): array
     {
         try {
-            $connection = config('queue.default', 'redis');
+            $connection = config('queue.default', 'sync');
             $size = Queue::size();
             return ['ok' => true, 'connection' => $connection, 'pending_jobs' => $size];
         } catch (\Throwable $e) {

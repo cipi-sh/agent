@@ -75,7 +75,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Enable/disable the health check endpoint at /cipi/health.
-    | The health check reports app status, DB, Redis, and queue.
+    | The health check reports app status, DB, cache, and queue.
     |
     */
     'health_check' => env('CIPI_HEALTH_CHECK', true),
