@@ -4,6 +4,18 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
+## [1.0.3] — 2026-03-05
+
+### Added
+
+- **`db_query` MCP tool** — execute SQL queries against the application database for data investigation and debugging, equivalent to `cipi app tinker`. Supports SELECT, SHOW, DESCRIBE, EXPLAIN (read) and INSERT, UPDATE, DELETE (write). Results are formatted as a readable ASCII table, capped at 100 rows. Destructive DDL operations (DROP TABLE/DATABASE, TRUNCATE, GRANT/REVOKE, file I/O) are blocked for safety.
+
+### Changed
+
+- **Enhanced `logs` MCP tool** — the `logs` tool now supports all Cipi log types (`laravel`, `nginx`, `php`, `worker`, `deploy`) via the new `type` parameter, matching the CLI's `cipi app logs <app> --type=<type>`. Added `level` parameter for minimum severity filtering on Laravel logs (e.g. `error` returns error, critical, alert, and emergency entries) and `search` parameter for case-insensitive keyword filtering across all log types. Laravel daily log rotation (`laravel-YYYY-MM-DD.log`) is auto-detected. Multi-line Laravel log entries (stack traces) are kept intact during filtering. Fully backward-compatible — calling `logs` without new parameters behaves exactly as before.
+
+---
+
 ## [1.0.2] — 2026-03-05
 
 ### Added

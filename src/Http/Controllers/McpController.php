@@ -22,6 +22,23 @@ class McpController extends Controller
         'schedule:work', 'horizon', 'octane:start', 'reverb:start',
     ];
 
+    private const LOG_LEVELS = [
+        'debug' => 0, 'info' => 1, 'notice' => 2, 'warning' => 3,
+        'error' => 4, 'critical' => 5, 'alert' => 6, 'emergency' => 7,
+    ];
+
+    private const BLOCKED_SQL_PATTERNS = [
+        '/\bDROP\s+(DATABASE|SCHEMA|TABLE|VIEW)\b/i',
+        '/\bCREATE\s+(DATABASE|SCHEMA)\b/i',
+        '/\bTRUNCATE\b/i',
+        '/\bLOAD\s+DATA\b/i',
+        '/\bINTO\s+(OUTFILE|DUMPFILE)\b/i',
+        '/\bGRANT\s/i',
+        '/\bREVOKE\s/i',
+    ];
+
+    private const MAX_QUERY_ROWS = 100;
+
     public function handle(Request $request): JsonResponse|Response
     {
         $body = $request->json()->all();
@@ -91,8 +108,9 @@ class McpController extends Controller
                 ],
                 'instructions' => "Cipi Agent MCP Server for app '{$appUser}'. "
                     . "Use 'health' to check app status, 'app_info' for configuration details, "
-                    . "'deploy' to trigger a deployment, 'logs' to read recent error logs, "
-                    . "and 'artisan' to run Artisan commands.",
+                    . "'deploy' to trigger a deployment, 'logs' to read application and infrastructure logs "
+                    . "(supports type: laravel/nginx/php/worker/deploy, severity filtering, and keyword search), "
+                    . "'artisan' to run Artisan commands, and 'db_query' to execute SQL queries for data investigation.",
             ],
         ];
     }
@@ -126,14 +144,29 @@ class McpController extends Controller
                     ],
                     [
                         'name'        => 'logs',
-                        'description' => 'Read the last N lines from the Laravel application log file (storage/logs/laravel.log).',
+                        'description' => 'Read application and infrastructure logs. Supports Laravel app logs, Nginx, PHP-FPM, queue worker, and deploy logs with optional severity filtering and keyword search. Equivalent to "cipi app logs <app> --type=<type>" on the CLI.',
                         'inputSchema' => [
                             'type'       => 'object',
                             'properties' => [
+                                'type' => [
+                                    'type'        => 'string',
+                                    'enum'        => ['laravel', 'nginx', 'php', 'worker', 'deploy'],
+                                    'description' => 'Log type. "laravel" = application logs from storage/logs/ (daily or single). "nginx" = Nginx access + error logs. "php" = PHP-FPM error log. "worker" = Supervisor queue worker logs (all queues). "deploy" = Deployer output log.',
+                                    'default'     => 'laravel',
+                                ],
                                 'lines' => [
                                     'type'        => 'integer',
-                                    'description' => 'Number of log lines to return. Default: 50. Max: 500.',
+                                    'description' => 'Number of log lines to return per file. Default: 50. Max: 500.',
                                     'default'     => 50,
+                                ],
+                                'level' => [
+                                    'type'        => 'string',
+                                    'enum'        => ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'],
+                                    'description' => 'Minimum severity level for Laravel logs. Returns entries at this level and above (e.g. "error" includes error, critical, alert, emergency). Only applies when type is "laravel".',
+                                ],
+                                'search' => [
+                                    'type'        => 'string',
+                                    'description' => 'Case-insensitive keyword filter. Only entries containing this string are returned. For Laravel logs, matches against the full multi-line entry.',
                                 ],
                             ],
                             'required' => [],
@@ -153,6 +186,20 @@ class McpController extends Controller
                             'required' => ['command'],
                         ],
                     ],
+                    [
+                        'name'        => 'db_query',
+                        'description' => 'Execute SQL queries against the application database for data investigation and debugging. Supports SELECT (read) and INSERT/UPDATE/DELETE (write). Destructive DDL (DROP TABLE, TRUNCATE, etc.) is blocked. Results are limited to 100 rows. Equivalent to running queries in "cipi app tinker".',
+                        'inputSchema' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'query' => [
+                                    'type'        => 'string',
+                                    'description' => 'The SQL query to execute (e.g. "SELECT * FROM users WHERE id = 1", "SELECT COUNT(*) FROM failed_jobs", "UPDATE settings SET value = \'true\' WHERE key = \'maintenance\'").',
+                                ],
+                            ],
+                            'required' => ['query'],
+                        ],
+                    ],
                 ],
             ],
         ];
@@ -169,6 +216,7 @@ class McpController extends Controller
             'deploy'   => $this->runDeploy(),
             'logs'     => $this->runLogs($arguments),
             'artisan'  => $this->runArtisan($arguments),
+            'db_query' => $this->runDbQuery($arguments),
             default    => null,
         };
 
@@ -295,30 +343,346 @@ class McpController extends Controller
 
     private function runLogs(array $arguments): string
     {
-        $lines   = min((int) ($arguments['lines'] ?? 50), 500);
-        $logPath = storage_path('logs/laravel.log');
+        $type   = $arguments['type'] ?? 'laravel';
+        $lines  = min(max((int) ($arguments['lines'] ?? 50), 1), 500);
+        $level  = isset($arguments['level']) ? strtolower($arguments['level']) : null;
+        $search = $arguments['search'] ?? null;
 
-        if (! file_exists($logPath)) {
-            return "Log file not found at: {$logPath}";
+        if ($level !== null && ! isset(self::LOG_LEVELS[$level])) {
+            return "Invalid level '{$level}'. Valid: " . implode(', ', array_keys(self::LOG_LEVELS));
         }
 
-        if (filesize($logPath) === 0) {
-            return '(log file is empty)';
+        $files = match ($type) {
+            'nginx'  => $this->resolveInfraLogs('nginx'),
+            'php'    => $this->resolveInfraLogs('php'),
+            'worker' => $this->resolveInfraLogs('worker'),
+            'deploy' => $this->resolveInfraLogs('deploy'),
+            default  => $this->resolveLaravelLogs(),
+        };
+
+        if (empty($files)) {
+            $hint = ($type !== 'laravel' && empty(config('cipi.app_user')))
+                ? ' CIPI_APP_USER is not configured — infrastructure logs require it.'
+                : '';
+
+            return "No log files found for type '{$type}'.{$hint}";
         }
 
-        $file = new \SplFileObject($logPath, 'r');
+        $sections = [];
+
+        foreach ($files as $label => $path) {
+            if (! file_exists($path)) {
+                $sections[] = "--- {$label} ---\nFile not found: {$path}";
+                continue;
+            }
+
+            if (filesize($path) === 0) {
+                $sections[] = "--- {$label} ---\n(empty)";
+                continue;
+            }
+
+            $rawLines = $this->tailFile($path, $lines);
+
+            if ($type === 'laravel') {
+                $content = $this->processLaravelLines($rawLines, $level, $search);
+            } elseif ($search !== null) {
+                $content = array_values(array_filter(
+                    $rawLines,
+                    fn (string $line) => stripos($line, $search) !== false
+                ));
+            } else {
+                $content = $rawLines;
+            }
+
+            $text = empty($content) ? '(no matching entries)' : implode('', $content);
+            $sections[] = count($files) > 1
+                ? "--- {$label} ---\n{$text}"
+                : $text;
+        }
+
+        return implode("\n\n", $sections) ?: '(no content)';
+    }
+
+    private function resolveLaravelLogs(): array
+    {
+        $dir   = storage_path('logs');
+        $files = [];
+
+        $dailyLogs = glob($dir . '/laravel-*.log') ?: [];
+
+        if (! empty($dailyLogs)) {
+            rsort($dailyLogs);
+            $files[basename($dailyLogs[0])] = $dailyLogs[0];
+        } elseif (file_exists($dir . '/laravel.log')) {
+            $files['laravel.log'] = $dir . '/laravel.log';
+        }
+
+        return $files;
+    }
+
+    private function resolveInfraLogs(string $type): array
+    {
+        $appUser = config('cipi.app_user');
+
+        if (empty($appUser)) {
+            return [];
+        }
+
+        $dir = "/home/{$appUser}/logs";
+
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        return match ($type) {
+            'nginx' => array_filter([
+                'nginx-error.log'  => $dir . '/nginx-error.log',
+                'nginx-access.log' => $dir . '/nginx-access.log',
+            ], 'file_exists'),
+
+            'php' => file_exists($dir . '/php-fpm-error.log')
+                ? ['php-fpm-error.log' => $dir . '/php-fpm-error.log']
+                : [],
+
+            'worker' => $this->resolveWorkerLogs($dir),
+
+            'deploy' => file_exists($dir . '/deploy.log')
+                ? ['deploy.log' => $dir . '/deploy.log']
+                : [],
+
+            default => [],
+        };
+    }
+
+    private function resolveWorkerLogs(string $dir): array
+    {
+        $found = glob($dir . '/worker-*.log') ?: [];
+        $files = [];
+
+        foreach ($found as $path) {
+            $files[basename($path)] = $path;
+        }
+
+        ksort($files);
+
+        return $files;
+    }
+
+    private function tailFile(string $path, int $lines): array
+    {
+        $file = new \SplFileObject($path, 'r');
         $file->seek(PHP_INT_MAX);
-        $totalLines = $file->key();
-        $startLine  = max(0, $totalLines - $lines);
+        $total = $file->key();
+        $start = max(0, $total - $lines);
 
-        $file->seek($startLine);
-        $content = [];
+        $file->seek($start);
+        $buffer = [];
 
         while (! $file->eof()) {
-            $content[] = $file->fgets();
+            $line = $file->fgets();
+            if ($line !== false) {
+                $buffer[] = $line;
+            }
         }
 
-        return implode('', $content) ?: '(no content)';
+        return $buffer;
+    }
+
+    private function processLaravelLines(array $rawLines, ?string $minLevel, ?string $search): array
+    {
+        if ($minLevel === null && $search === null) {
+            return $rawLines;
+        }
+
+        $entries = $this->parseLaravelEntries($rawLines);
+
+        if ($minLevel !== null) {
+            $minSeverity = self::LOG_LEVELS[$minLevel];
+            $entries = array_filter($entries, function (array $entry) use ($minSeverity) {
+                if (preg_match('/\]\s+\S+\.(\w+)\s*:/', $entry['header'], $m)) {
+                    return (self::LOG_LEVELS[strtolower($m[1])] ?? -1) >= $minSeverity;
+                }
+                return false;
+            });
+        }
+
+        if ($search !== null) {
+            $entries = array_filter($entries, function (array $entry) use ($search) {
+                foreach ($entry['lines'] as $line) {
+                    if (stripos($line, $search) !== false) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            array_push($result, ...$entry['lines']);
+        }
+
+        return $result;
+    }
+
+    private function parseLaravelEntries(array $lines): array
+    {
+        $entries = [];
+        $current = null;
+
+        foreach ($lines as $line) {
+            if (preg_match('/^\[\d{4}-\d{2}-\d{2}[\sT]/', $line)) {
+                if ($current !== null) {
+                    $entries[] = $current;
+                }
+                $current = ['header' => $line, 'lines' => [$line]];
+            } elseif ($current !== null) {
+                $current['lines'][] = $line;
+            } else {
+                $entries[] = ['header' => '', 'lines' => [$line]];
+            }
+        }
+
+        if ($current !== null) {
+            $entries[] = $current;
+        }
+
+        return $entries;
+    }
+
+    private function runDbQuery(array $arguments): string
+    {
+        $query = trim($arguments['query'] ?? '');
+
+        if (empty($query)) {
+            return 'Error: the "query" argument is required.';
+        }
+
+        foreach (self::BLOCKED_SQL_PATTERNS as $pattern) {
+            if (preg_match($pattern, $query)) {
+                return 'Error: this query contains a blocked operation. '
+                    . 'DROP TABLE/DATABASE, TRUNCATE, GRANT/REVOKE, and file operations are not allowed via MCP.';
+            }
+        }
+
+        $normalized = ltrim($query);
+        $isRead     = (bool) preg_match('/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i', $normalized);
+
+        try {
+            if ($isRead) {
+                return $this->executeReadQuery($query);
+            }
+
+            return $this->executeWriteQuery($query, $normalized);
+        } catch (\Throwable $e) {
+            return 'SQL Error: ' . $e->getMessage();
+        }
+    }
+
+    private function executeReadQuery(string $query): string
+    {
+        $results = DB::select($query);
+        $count   = count($results);
+
+        if ($count === 0) {
+            return '(0 rows returned)';
+        }
+
+        $truncated = $count > self::MAX_QUERY_ROWS;
+        $slice     = $truncated
+            ? array_slice($results, 0, self::MAX_QUERY_ROWS)
+            : $results;
+
+        $output = $this->formatQueryResults($slice);
+        $label  = $count === 1 ? '1 row' : "{$count} rows";
+
+        if ($truncated) {
+            $output .= "\n\n({$label} total, showing first " . self::MAX_QUERY_ROWS . ')';
+        } else {
+            $output .= "\n\n({$label})";
+        }
+
+        return $output;
+    }
+
+    private function executeWriteQuery(string $query, string $normalized): string
+    {
+        if (preg_match('/^INSERT\b/i', $normalized)) {
+            DB::insert($query);
+
+            return 'Insert executed successfully.';
+        }
+
+        if (preg_match('/^UPDATE\b/i', $normalized)) {
+            $affected = DB::update($query);
+
+            return "Update executed. Rows affected: {$affected}";
+        }
+
+        if (preg_match('/^DELETE\b/i', $normalized)) {
+            $affected = DB::delete($query);
+
+            return "Delete executed. Rows affected: {$affected}";
+        }
+
+        $result = DB::statement($query);
+
+        return 'Statement executed. Success: ' . ($result ? 'true' : 'false');
+    }
+
+    private function formatQueryResults(array $results): string
+    {
+        $rows = array_map(fn ($row) => (array) $row, $results);
+
+        if (empty($rows)) {
+            return '(empty)';
+        }
+
+        $columns  = array_keys($rows[0]);
+        $widths   = [];
+
+        foreach ($columns as $col) {
+            $widths[$col] = mb_strlen((string) $col);
+        }
+
+        foreach ($rows as $row) {
+            foreach ($columns as $col) {
+                $val = $row[$col] ?? '';
+                $len = mb_strlen($this->castCellValue($val));
+                if ($len > $widths[$col]) {
+                    $widths[$col] = min($len, 60);
+                }
+            }
+        }
+
+        $header    = '| ' . implode(' | ', array_map(fn ($c) => str_pad($c, $widths[$c]), $columns)) . ' |';
+        $separator = '|-' . implode('-|-', array_map(fn ($c) => str_repeat('-', $widths[$c]), $columns)) . '-|';
+
+        $lines = [$header, $separator];
+
+        foreach ($rows as $row) {
+            $cells = [];
+            foreach ($columns as $col) {
+                $val = $this->castCellValue($row[$col] ?? '');
+                $cells[] = str_pad(mb_substr($val, 0, $widths[$col]), $widths[$col]);
+            }
+            $lines[] = '| ' . implode(' | ', $cells) . ' |';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function castCellValue(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return (string) $value;
     }
 
     private function runArtisan(array $arguments): string
