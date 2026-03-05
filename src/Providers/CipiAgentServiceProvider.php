@@ -3,8 +3,9 @@
 namespace Cipi\Agent\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Cipi\Agent\Console\Commands\CipiStatusCommand;
 use Cipi\Agent\Console\Commands\CipiDeployKeyCommand;
+use Cipi\Agent\Console\Commands\CipiMcpCommand;
+use Cipi\Agent\Console\Commands\CipiStatusCommand;
 
 class CipiAgentServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,7 @@ class CipiAgentServiceProvider extends ServiceProvider
             $this->commands([
                 CipiStatusCommand::class,
                 CipiDeployKeyCommand::class,
+                CipiMcpCommand::class,
             ]);
         }
     }

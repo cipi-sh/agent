@@ -90,4 +90,19 @@ return [
     */
     'log_channel' => env('CIPI_LOG_CHANNEL', null), // null = default channel
 
+    /*
+    |--------------------------------------------------------------------------
+    | MCP Server
+    |--------------------------------------------------------------------------
+    |
+    | Enable the MCP (Model Context Protocol) endpoint at /cipi/mcp.
+    | This exposes a JSON-RPC 2.0 server that AI assistants (Cursor, Claude
+    | Desktop, etc.) can connect to for app monitoring and deploy management.
+    |
+    | The endpoint is protected by the same CIPI_WEBHOOK_TOKEN Bearer token.
+    | Run `php artisan cipi:mcp` to get the client configuration snippet.
+    |
+    */
+    'mcp_enabled' => env('CIPI_MCP_ENABLED', true),
+
 ];

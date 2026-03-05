@@ -1,8 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Cipi\Agent\Http\Controllers\WebhookController;
 use Cipi\Agent\Http\Controllers\HealthController;
+use Cipi\Agent\Http\Controllers\McpController;
+use Cipi\Agent\Http\Controllers\WebhookController;
 use Cipi\Agent\Http\Middleware\VerifyWebhookToken;
 
 $prefix = config('cipi.route_prefix', 'cipi');
@@ -19,5 +20,12 @@ Route::prefix($prefix)->group(function () {
         Route::get('/health', [HealthController::class, 'check'])
             ->middleware(VerifyWebhookToken::class)
             ->name('cipi.health');
+    }
+
+    // MCP server — Model Context Protocol endpoint for AI assistants
+    if (config('cipi.mcp_enabled', true)) {
+        Route::post('/mcp', [McpController::class, 'handle'])
+            ->middleware(VerifyWebhookToken::class)
+            ->name('cipi.mcp');
     }
 });
