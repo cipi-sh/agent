@@ -26,14 +26,6 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ## [1.0] — 2026-03-02
 
-### Changed
-
-- Minor README fixes.
-
----
-
-## [0.1] — 2026-03-02
-
 ### Added
 
 - Initial release.
