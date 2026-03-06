@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Cipi\Agent\Http\Controllers\DatabaseController;
 use Cipi\Agent\Http\Controllers\HealthController;
 use Cipi\Agent\Http\Controllers\McpController;
 use Cipi\Agent\Http\Controllers\WebhookController;
@@ -27,5 +28,15 @@ Route::prefix($prefix)->group(function () {
         Route::post('/mcp', [McpController::class, 'handle'])
             ->middleware(VerifyWebhookToken::class)
             ->name('cipi.mcp');
+    }
+
+    // Database anonymizer — anonymize database dumps for local development
+    if (config('cipi.anonymizer_enabled')) {
+        Route::post('/db', [DatabaseController::class, 'startAnonymization'])
+            ->middleware(VerifyWebhookToken::class)
+            ->name('cipi.db.anonymize');
+
+        Route::get('/db/{token}', [DatabaseController::class, 'downloadAnonymized'])
+            ->name('cipi.db.download');
     }
 });

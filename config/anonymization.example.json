@@ -1,0 +1,41 @@
+{
+  "transformations": {
+    "users": {
+      "name": "fakeName",
+      "email": "fakeEmail",
+      "password": "password",
+      "phone": "fakePhoneNumber",
+      "address": "fakeAddress",
+      "city": "fakeCity",
+      "postal_code": "fakePostcode",
+      "birth_date": "fakeDate",
+      "first_name": "fakeFirstName",
+      "last_name": "fakeLastName"
+    },
+    "customers": {
+      "company_name": "fakeCompany",
+      "contact_name": "fakeName",
+      "contact_email": "fakeEmail",
+      "billing_address": "fakeAddress",
+      "shipping_address": "fakeAddress"
+    },
+    "orders": {
+      "customer_notes": "fakeParagraph",
+      "internal_notes": "fakeParagraph"
+    },
+    "user_profiles": {
+      "bio": "fakeParagraph",
+      "website": "fakeUrl",
+      "social_links": "fakeUrl"
+    },
+    "support_tickets": {
+      "user_message": "fakeParagraph",
+      "agent_response": "fakeParagraph"
+    }
+  },
+  "options": {
+    "hash_algorithm": "auto",
+    "preserve_ids": true,
+    "faker_locale": "en_US"
+  }
+}

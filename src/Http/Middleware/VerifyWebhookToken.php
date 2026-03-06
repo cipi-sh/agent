@@ -10,10 +10,10 @@ class VerifyWebhookToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $token = config('cipi.webhook_token');
+        $expectedToken = $this->getExpectedToken($request);
 
-        if (empty($token)) {
-            return response()->json(['error' => 'Webhook not configured'], 500);
+        if (empty($expectedToken)) {
+            return response()->json(['error' => 'Endpoint not configured or token missing'], 500);
         }
 
         // 1. GitHub: X-Hub-Signature-256 (HMAC SHA256)
@@ -55,13 +55,46 @@ class VerifyWebhookToken
             return $next($request);
         }
 
-        // 7. Bearer token (for health check via curl)
+        // 7. Bearer token (for health check, MCP, and anonymizer via curl)
         if ($bearer = $request->bearerToken()) {
-            if (hash_equals($token, $bearer)) {
+            if (hash_equals($expectedToken, $bearer)) {
                 return $next($request);
             }
         }
 
         return response()->json(['error' => 'Invalid webhook signature or token'], 403);
+    }
+
+    /**
+     * Get the expected token based on the request path.
+     */
+    protected function getExpectedToken(Request $request): string
+    {
+        $path = $request->getPathInfo();
+        $prefix = config('cipi.route_prefix', 'cipi');
+        $routePrefix = "/{$prefix}";
+
+        // Webhook endpoint - uses webhook token
+        if (str_starts_with($path, "{$routePrefix}/webhook")) {
+            return config('cipi.webhook_token');
+        }
+
+        // MCP endpoint - uses MCP token (fallback to webhook token for backward compatibility)
+        if (str_starts_with($path, "{$routePrefix}/mcp")) {
+            return config('cipi.mcp_token', config('cipi.webhook_token'));
+        }
+
+        // Database anonymizer endpoints - uses anonymizer token
+        if (str_starts_with($path, "{$routePrefix}/db")) {
+            return config('cipi.anonymizer_token');
+        }
+
+        // Health endpoint - uses webhook token
+        if (str_starts_with($path, "{$routePrefix}/health")) {
+            return config('cipi.webhook_token');
+        }
+
+        // Default fallback
+        return config('cipi.webhook_token');
     }
 }

@@ -99,10 +99,46 @@ return [
     | This exposes a JSON-RPC 2.0 server that AI assistants (Cursor, Claude
     | Desktop, etc.) can connect to for app monitoring and deploy management.
     |
-    | The endpoint is protected by the same CIPI_WEBHOOK_TOKEN Bearer token.
+    | The endpoint is protected by CIPI_MCP_TOKEN Bearer token.
     | Run `php artisan cipi:mcp` to get the client configuration snippet.
     |
     */
     'mcp_enabled' => env('CIPI_MCP_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | MCP Token
+    |--------------------------------------------------------------------------
+    |
+    | Dedicated token for MCP server access. Use this instead of the webhook
+    | token for AI assistant integrations. Generate with `php artisan cipi:mcp-token`.
+    |
+    */
+    'mcp_token' => env('CIPI_MCP_TOKEN', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Anonymizer
+    |--------------------------------------------------------------------------
+    |
+    | Enable the database anonymization feature. When enabled, provides endpoints
+    | to create anonymized database dumps for local development/testing.
+    |
+    | Requires CIPI_ANONYMIZER_TOKEN to be set. Use `php artisan cipi:anonymizer-token`
+    | to generate a secure token.
+    |
+    */
+    'anonymizer_enabled' => env('CIPI_ANONYMIZER_TOKEN') ? true : false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Anonymizer Token
+    |--------------------------------------------------------------------------
+    |
+    | Dedicated token for database anonymization API access. Required to trigger
+    | database dumps and anonymization jobs.
+    |
+    */
+    'anonymizer_token' => env('CIPI_ANONYMIZER_TOKEN', ''),
 
 ];

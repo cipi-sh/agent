@@ -4,6 +4,37 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
+## [1.1] — 2026-03-07
+
+### Added
+
+- **Database Anonymizer** — complete system for creating anonymized database dumps for local development/testing. Includes JSON configuration for transformations, async job processing, and secure download links.
+- **POST `/cipi/db` API endpoint** — authenticated endpoint that accepts an email address and queues a database anonymization job. Requires `CIPI_ANONYMIZER_TOKEN` to be configured.
+- **GET `/cipi/db/{token}` endpoint** — signed URL endpoint (valid for 15 minutes) that serves anonymized SQL dumps for download.
+- **`php artisan cipi:anonymize`** — new Artisan command that creates anonymized database dumps. Supports MySQL and PostgreSQL, applies JSON-defined transformations using Faker library, and handles password re-hashing with project-specific algorithms (bcrypt/argon/auto).
+- **`php artisan cipi:anonymizer-token`** — generates a secure token for database anonymization API access (`CIPI_ANONYMIZER_TOKEN`).
+- **`CIPI_ANONYMIZER_TOKEN`** — dedicated environment variable for database anonymization features. When set, enables the `/cipi/db` endpoints.
+- **`CIPI_MCP_TOKEN`** — dedicated environment variable for MCP server access, separate from webhook token for better security isolation.
+- **`php artisan cipi:mcp --token`** — option to generate a new MCP token without showing setup instructions.
+- **Async anonymization job** — `AnonymizeDatabaseJob` that processes database dumps in the background, sends email notifications with download links, and handles cleanup.
+- **JSON transformation config** — `anonymization.json` configuration file with support for table-specific transformations (fakeName, fakeEmail, fakeAddress, password hashing, etc.) using Faker library.
+- **Email notifications** — automated emails sent upon anonymization completion with signed download links valid for 15 minutes.
+
+### Changed
+
+- **Token separation** — MCP server now uses dedicated `CIPI_MCP_TOKEN` instead of shared webhook token. Falls back to `CIPI_WEBHOOK_TOKEN` for backward compatibility.
+- **Middleware enhancement** — `VerifyWebhookToken` middleware now automatically selects the appropriate token based on endpoint (`/webhook` uses webhook token, `/mcp` uses MCP token, `/db` uses anonymizer token).
+- **Enhanced `cipi:mcp` command** — now shows `CIPI_MCP_TOKEN` in setup instructions and supports `--token` flag for token generation.
+
+### Security
+
+- **Token isolation** — separate tokens for different functionalities prevent cross-feature access.
+- **Signed download URLs** — database dumps are served via time-limited signed URLs (15 minutes expiration).
+- **Automatic cleanup** — expired tokens and files are automatically cleaned up.
+- **Safe transformations** — password fields are properly re-hashed using Laravel's Hash facade.
+
+---
+
 ## [1.0.3] — 2026-03-05
 
 ### Added

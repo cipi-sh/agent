@@ -6,15 +6,20 @@ use Illuminate\Console\Command;
 
 class CipiMcpCommand extends Command
 {
-    protected $signature = 'cipi:mcp';
+    protected $signature = 'cipi:mcp {--token : Generate a new MCP token}';
 
-    protected $description = 'Show the MCP server endpoint and setup instructions for AI assistants (Cursor, Claude Desktop)';
+    protected $description = 'Show the MCP server endpoint and setup instructions for AI assistants (Cursor, Claude Desktop), or generate a new MCP token';
 
     public function handle(): int
     {
+        // Generate new token if requested
+        if ($this->option('token')) {
+            return $this->generateToken();
+        }
+
         $prefix  = config('cipi.route_prefix', 'cipi');
         $mcpUrl  = url("{$prefix}/mcp");
-        $token   = config('cipi.webhook_token', '');
+        $token   = config('cipi.mcp_token', config('cipi.webhook_token', ''));
         $appUser = config('cipi.app_user', 'myapp');
 
         if (! config('cipi.mcp_enabled', true)) {
@@ -25,7 +30,7 @@ class CipiMcpCommand extends Command
         $this->components->info('Cipi MCP Server');
         $this->newLine();
         $this->line("  Endpoint : <fg=cyan>{$mcpUrl}</>");
-        $this->line('  Auth     : Bearer token (CIPI_WEBHOOK_TOKEN)');
+        $this->line('  Auth     : Bearer token (CIPI_MCP_TOKEN)');
         $this->line('  Protocol : MCP 2024-11-05 over HTTP (JSON-RPC 2.0)');
         $this->newLine();
 
@@ -94,12 +99,34 @@ class CipiMcpCommand extends Command
 
         // ── Warnings ──────────────────────────────────────────────────────────
         if (empty($token)) {
-            $this->components->warn('CIPI_WEBHOOK_TOKEN is not set — the MCP endpoint will reject all requests.');
+            $this->components->warn('CIPI_MCP_TOKEN is not set — the MCP endpoint will reject all requests.');
         }
 
         if (empty(config('cipi.app_user'))) {
             $this->components->warn('CIPI_APP_USER is not set — the deploy tool will not work.');
         }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Generate a new secure MCP token.
+     */
+    protected function generateToken(): int
+    {
+        $token = 'cipi_mcp_' . bin2hex(random_bytes(32));
+
+        $this->components->info('Generated new MCP token');
+        $this->newLine();
+        $this->line("  <fg=cyan>{$token}</>");
+        $this->newLine();
+
+        $this->components->info('Add this to your .env file:');
+        $this->line("  <fg=yellow>CIPI_MCP_TOKEN={$token}</>");
+        $this->newLine();
+
+        $this->components->warn('Keep this token secure — it provides access to sensitive application operations.');
+        $this->line('  Never commit it to version control or share it publicly.');
 
         return self::SUCCESS;
     }
