@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Cipi\Agent\Console\Commands\CipiAnonymizeCommand;
 use Cipi\Agent\Console\Commands\CipiAnonymizerTokenCommand;
 use Cipi\Agent\Console\Commands\CipiDeployKeyCommand;
+use Cipi\Agent\Console\Commands\CipiHealthTokenCommand;
 use Cipi\Agent\Console\Commands\CipiMcpCommand;
 use Cipi\Agent\Console\Commands\CipiStatusCommand;
 
@@ -40,6 +41,7 @@ class CipiAgentServiceProvider extends ServiceProvider
             $this->commands([
                 CipiStatusCommand::class,
                 CipiDeployKeyCommand::class,
+                CipiHealthTokenCommand::class,
                 CipiMcpCommand::class,
                 CipiAnonymizerTokenCommand::class,
                 CipiAnonymizeCommand::class,

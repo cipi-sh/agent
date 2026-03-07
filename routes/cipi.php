@@ -6,6 +6,7 @@ use Cipi\Agent\Http\Controllers\HealthController;
 use Cipi\Agent\Http\Controllers\McpController;
 use Cipi\Agent\Http\Controllers\WebhookController;
 use Cipi\Agent\Http\Middleware\VerifyAnonymizerToken;
+use Cipi\Agent\Http\Middleware\VerifyHealthToken;
 use Cipi\Agent\Http\Middleware\VerifyMcpToken;
 use Cipi\Agent\Http\Middleware\VerifyWebhookToken;
 
@@ -21,7 +22,7 @@ Route::prefix($prefix)->group(function () {
     // Health check — optional, token-protected
     if (config('cipi.health_check', true)) {
         Route::get('/health', [HealthController::class, 'check'])
-            ->middleware(VerifyWebhookToken::class)
+            ->middleware(VerifyHealthToken::class)
             ->name('cipi.health');
     }
 

@@ -82,6 +82,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Health Check Token
+    |--------------------------------------------------------------------------
+    |
+    | Dedicated token for health check endpoint access. When set, this token
+    | is used instead of the webhook token, allowing separate access control
+    | for monitoring tools. Falls back to CIPI_WEBHOOK_TOKEN if not set.
+    | Generate with `php artisan cipi:health-token`.
+    |
+    */
+    'health_token' => env('CIPI_HEALTH_TOKEN', ''),
+
+    /*
+    |--------------------------------------------------------------------------
     | Deploy Log
     |--------------------------------------------------------------------------
     |

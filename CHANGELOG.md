@@ -19,6 +19,9 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 - **`CIPI_ANONYMIZER_TOKEN`** — dedicated environment variable for database anonymization features. When set, enables the `/cipi/db` endpoints.
 - **`CIPI_MCP_TOKEN`** — dedicated environment variable for MCP server access, separate from webhook token for better security isolation.
 - **`php artisan cipi:mcp --token`** — option to generate a new MCP token without showing setup instructions.
+- **`CIPI_HEALTH_TOKEN`** — dedicated environment variable for health check endpoint access. Falls back to `CIPI_WEBHOOK_TOKEN` for full backward compatibility.
+- **`VerifyHealthToken` middleware** — dedicated middleware for `/cipi/health` that resolves `CIPI_HEALTH_TOKEN` (with `CIPI_WEBHOOK_TOKEN` fallback), consistent with the MCP and Anonymizer token pattern.
+- **`php artisan cipi:health-token`** — generates a secure token for health check access and prints the `.env` snippet.
 - **Async anonymization job** — `AnonymizeDatabaseJob` that processes database dumps in the background, sends email notifications with download links, and handles cleanup.
 - **JSON transformation config** — `anonymization.json` configuration file with support for table-specific transformations (fakeName, fakeEmail, fakeAddress, password hashing, etc.) using Faker library.
 - **Email notifications** — automated emails sent upon anonymization completion with signed download links valid for 15 minutes.
@@ -28,6 +31,7 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 - **Token separation** — MCP server now uses dedicated `CIPI_MCP_TOKEN` instead of shared webhook token. Falls back to `CIPI_WEBHOOK_TOKEN` for backward compatibility.
 - **Dedicated middleware** — Created separate middleware classes (`VerifyMcpToken`, `VerifyAnonymizerToken`) for better separation of concerns. Each endpoint now uses the appropriate middleware for its specific token type.
 - **Enhanced `cipi:mcp` command** — now shows `CIPI_MCP_TOKEN` in setup instructions and supports `--token` flag for token generation.
+- **`/cipi/health` middleware** — now uses `VerifyHealthToken` instead of `VerifyWebhookToken`, allowing monitoring tools (UptimeRobot, Grafana, etc.) to use a dedicated token independent of the deploy webhook secret.
 
 ### Changed (Breaking)
 
