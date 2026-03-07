@@ -1,9 +1,3 @@
-<p align="center">
-  <a href="https://cipi.sh">
-    <img src="https://cipi.sh/assets/images/logo.png" alt="Cipi" width="180">
-  </a>
-</p>
-
 <h1 align="center">Cipi Agent for Laravel</h1>
 
 <p align="center">
@@ -53,12 +47,12 @@ All features are configurable via environment variables with zero boilerplate. W
 
 ## Requirements
 
-| Requirement | Version |
-| --- | --- |
-| PHP | 8.1 or higher |
-| Laravel | 10, 11, or 12 |
-| Database | MySQL or PostgreSQL (for the anonymizer) |
-| CLI tools | `mysqldump` / `pg_dump` (for the anonymizer) |
+| Requirement | Version                                      |
+| ----------- | -------------------------------------------- |
+| PHP         | 8.1 or higher                                |
+| Laravel     | 10, 11, or 12                                |
+| Database    | MySQL or PostgreSQL (for the anonymizer)     |
+| CLI tools   | `mysqldump` / `pg_dump` (for the anonymizer) |
 
 ---
 
@@ -88,21 +82,21 @@ php artisan cipi:status
 
 All settings are driven by environment variables. When Cipi creates your application, it sets the core variables automatically. You only need to configure the optional features you want to enable.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `CIPI_WEBHOOK_TOKEN` | `""` | Secret token for webhook authentication (set by Cipi) |
-| `CIPI_APP_USER` | `""` | Linux username for the app (set by Cipi) |
-| `CIPI_PHP_VERSION` | system PHP | PHP version reported in health check (set by Cipi) |
-| `CIPI_DEPLOY_SCRIPT` | `~/.deployer/deploy.php` | Path to the Deployer config file (set by Cipi) |
-| `CIPI_DEPLOY_BRANCH` | `null` | Only deploy pushes to this branch (`null` = any branch) |
-| `CIPI_ROUTE_PREFIX` | `cipi` | URL prefix for all Cipi Agent routes |
-| `CIPI_LOG_CHANNEL` | `null` | Laravel log channel for deploy events |
-| `CIPI_HEALTH_CHECK` | `true` | Enable/disable the health check endpoint |
-| `CIPI_HEALTH_TOKEN` | `""` | Bearer token for health check (falls back to `CIPI_WEBHOOK_TOKEN`) |
-| `CIPI_MCP` | `false` | Enable/disable the MCP server endpoint |
-| `CIPI_MCP_TOKEN` | `""` | Bearer token for MCP access |
-| `CIPI_ANONYMIZER` | `false` | Enable/disable the database anonymizer |
-| `CIPI_ANONYMIZER_TOKEN` | `""` | Bearer token for anonymizer access |
+| Variable                | Default                  | Description                                                        |
+| ----------------------- | ------------------------ | ------------------------------------------------------------------ |
+| `CIPI_WEBHOOK_TOKEN`    | `""`                     | Secret token for webhook authentication (set by Cipi)              |
+| `CIPI_APP_USER`         | `""`                     | Linux username for the app (set by Cipi)                           |
+| `CIPI_PHP_VERSION`      | system PHP               | PHP version reported in health check (set by Cipi)                 |
+| `CIPI_DEPLOY_SCRIPT`    | `~/.deployer/deploy.php` | Path to the Deployer config file (set by Cipi)                     |
+| `CIPI_DEPLOY_BRANCH`    | `null`                   | Only deploy pushes to this branch (`null` = any branch)            |
+| `CIPI_ROUTE_PREFIX`     | `cipi`                   | URL prefix for all Cipi Agent routes                               |
+| `CIPI_LOG_CHANNEL`      | `null`                   | Laravel log channel for deploy events                              |
+| `CIPI_HEALTH_CHECK`     | `true`                   | Enable/disable the health check endpoint                           |
+| `CIPI_HEALTH_TOKEN`     | `""`                     | Bearer token for health check (falls back to `CIPI_WEBHOOK_TOKEN`) |
+| `CIPI_MCP`              | `false`                  | Enable/disable the MCP server endpoint                             |
+| `CIPI_MCP_TOKEN`        | `""`                     | Bearer token for MCP access                                        |
+| `CIPI_ANONYMIZER`       | `false`                  | Enable/disable the database anonymizer                             |
+| `CIPI_ANONYMIZER_TOKEN` | `""`                     | Bearer token for anonymizer access                                 |
 
 You can toggle features directly from the CLI without editing `.env` manually:
 
@@ -122,10 +116,10 @@ The webhook endpoint receives push events from your Git provider and writes a `.
 
 ### Supported Git Providers
 
-| Provider | Authentication method |
-| --- | --- |
+| Provider   | Authentication method             |
+| ---------- | --------------------------------- |
 | **GitHub** | `X-Hub-Signature-256` HMAC-SHA256 |
-| **GitLab** | `X-Gitlab-Token` header |
+| **GitLab** | `X-Gitlab-Token` header           |
 
 ### Setup
 
@@ -188,11 +182,15 @@ curl -H "Authorization: Bearer YOUR_TOKEN" https://yourdomain.com/cipi/health
   "laravel": "11.0.0",
   "environment": "production",
   "checks": {
-    "app":      { "ok": true, "version": "2.1.0", "debug": false },
+    "app": { "ok": true, "version": "2.1.0", "debug": false },
     "database": { "ok": true, "database": "myapp_prod" },
-    "cache":    { "ok": true },
-    "queue":    { "ok": true, "connection": "redis", "pending_jobs": 0 },
-    "deploy":   { "ok": true, "commit": "a1b2c3d4e5f6...", "short_commit": "a1b2c3d" }
+    "cache": { "ok": true },
+    "queue": { "ok": true, "connection": "redis", "pending_jobs": 0 },
+    "deploy": {
+      "ok": true,
+      "commit": "a1b2c3d4e5f6...",
+      "short_commit": "a1b2c3d"
+    }
   },
   "timestamp": "2026-03-07T10:00:00.000000Z"
 }
@@ -265,11 +263,11 @@ Triggers a zero-downtime deployment through the Cipi deploy pipeline. The AI ass
 
 Reads and filters application logs with support for all Cipi log types:
 
-| Parameter | Values | Description |
-| --- | --- | --- |
-| `type` | `laravel`, `nginx`, `php`, `worker`, `deploy` | Log file to read |
-| `level` | `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` | Minimum severity (Laravel logs only) |
-| `search` | any string | Case-insensitive keyword filter |
+| Parameter | Values                                                                          | Description                          |
+| --------- | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `type`    | `laravel`, `nginx`, `php`, `worker`, `deploy`                                   | Log file to read                     |
+| `level`   | `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` | Minimum severity (Laravel logs only) |
+| `search`  | any string                                                                      | Case-insensitive keyword filter      |
 
 Multi-line entries (stack traces) are kept intact during filtering.
 
@@ -291,11 +289,11 @@ Results are formatted as a readable ASCII table, capped at 100 rows.
 
 With the MCP server enabled, you can ask your AI assistant things like:
 
-- *"Check the health of the production app"*
-- *"Show me the last 50 error logs"*
-- *"Run `php artisan migrate:status`"*
-- *"Query the users table to find accounts created today"*
-- *"Deploy the latest changes"*
+- _"Check the health of the production app"_
+- _"Show me the last 50 error logs"_
+- _"Run `php artisan migrate:status`"_
+- _"Query the users table to find accounts created today"_
+- _"Deploy the latest changes"_
 
 ---
 
@@ -331,10 +329,10 @@ This creates `/home/{app_user}/.db/anonymization.json` from the built-in templat
 {
   "transformations": {
     "users": {
-      "name":     "fakeName",
-      "email":    "fakeEmail",
+      "name": "fakeName",
+      "email": "fakeEmail",
       "password": "password",
-      "phone":    "fakePhoneNumber"
+      "phone": "fakePhoneNumber"
     },
     "orders": {
       "customer_notes": "fakeParagraph"
@@ -342,28 +340,28 @@ This creates `/home/{app_user}/.db/anonymization.json` from the built-in templat
   },
   "options": {
     "hash_algorithm": "auto",
-    "faker_locale":   "en_US"
+    "faker_locale": "en_US"
   }
 }
 ```
 
 ### Supported Transformations
 
-| Transformation | Output |
-| --- | --- |
-| `fakeName` | Full name (e.g., "John Smith") |
-| `fakeFirstName` | First name |
-| `fakeLastName` | Last name |
-| `fakeEmail` | Email address |
-| `fakeCompany` | Company name |
-| `fakeAddress` | Full street address |
-| `fakeCity` | City name |
-| `fakePostcode` | Postal code |
-| `fakePhoneNumber` | Phone number |
-| `fakeDate` | Random date |
-| `fakeUrl` | URL |
-| `fakeParagraph` | Lorem ipsum paragraph |
-| `password` | Re-hashes using the project's algorithm (bcrypt / argon / auto) |
+| Transformation    | Output                                                          |
+| ----------------- | --------------------------------------------------------------- |
+| `fakeName`        | Full name (e.g., "John Smith")                                  |
+| `fakeFirstName`   | First name                                                      |
+| `fakeLastName`    | Last name                                                       |
+| `fakeEmail`       | Email address                                                   |
+| `fakeCompany`     | Company name                                                    |
+| `fakeAddress`     | Full street address                                             |
+| `fakeCity`        | City name                                                       |
+| `fakePostcode`    | Postal code                                                     |
+| `fakePhoneNumber` | Phone number                                                    |
+| `fakeDate`        | Random date                                                     |
+| `fakeUrl`         | URL                                                             |
+| `fakeParagraph`   | Lorem ipsum paragraph                                           |
+| `password`        | Re-hashes using the project's algorithm (bcrypt / argon / auto) |
 
 ### API Endpoints
 
@@ -423,37 +421,37 @@ Cipi Agent provides a complete set of Artisan commands for managing all features
 
 ### Status & Info
 
-| Command | Description |
-| --- | --- |
-| `php artisan cipi:status` | Show agent configuration and live database connectivity |
-| `php artisan cipi:deploy-key` | Print the SSH deploy key for the current app |
-| `php artisan cipi:mcp` | Print the MCP endpoint URL and client configuration snippets |
+| Command                       | Description                                                  |
+| ----------------------------- | ------------------------------------------------------------ |
+| `php artisan cipi:status`     | Show agent configuration and live database connectivity      |
+| `php artisan cipi:deploy-key` | Print the SSH deploy key for the current app                 |
+| `php artisan cipi:mcp`        | Print the MCP endpoint URL and client configuration snippets |
 
 ### Token Management
 
-| Command | Description |
-| --- | --- |
-| `php artisan cipi:generate-token mcp` | Generate a secure `CIPI_MCP_TOKEN` |
-| `php artisan cipi:generate-token health` | Generate a secure `CIPI_HEALTH_TOKEN` |
+| Command                                     | Description                               |
+| ------------------------------------------- | ----------------------------------------- |
+| `php artisan cipi:generate-token mcp`       | Generate a secure `CIPI_MCP_TOKEN`        |
+| `php artisan cipi:generate-token health`    | Generate a secure `CIPI_HEALTH_TOKEN`     |
 | `php artisan cipi:generate-token anonymize` | Generate a secure `CIPI_ANONYMIZER_TOKEN` |
 
 ### Service Toggle
 
-| Command | Description |
-| --- | --- |
-| `php artisan cipi:service mcp --enable` | Enable the MCP server |
-| `php artisan cipi:service mcp --disable` | Disable the MCP server |
-| `php artisan cipi:service health --enable` | Enable the health check endpoint |
-| `php artisan cipi:service health --disable` | Disable the health check endpoint |
-| `php artisan cipi:service anonymize --enable` | Enable the database anonymizer |
-| `php artisan cipi:service anonymize --disable` | Disable the database anonymizer |
+| Command                                        | Description                       |
+| ---------------------------------------------- | --------------------------------- |
+| `php artisan cipi:service mcp --enable`        | Enable the MCP server             |
+| `php artisan cipi:service mcp --disable`       | Disable the MCP server            |
+| `php artisan cipi:service health --enable`     | Enable the health check endpoint  |
+| `php artisan cipi:service health --disable`    | Disable the health check endpoint |
+| `php artisan cipi:service anonymize --enable`  | Enable the database anonymizer    |
+| `php artisan cipi:service anonymize --disable` | Disable the database anonymizer   |
 
 ### Database Anonymizer
 
-| Command | Description |
-| --- | --- |
-| `php artisan cipi:init-anonymize` | Create `anonymization.json` from the built-in template |
-| `php artisan cipi:anonymize <config> <output>` | Run an anonymized dump directly from the CLI |
+| Command                                        | Description                                            |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| `php artisan cipi:init-anonymize`              | Create `anonymization.json` from the built-in template |
+| `php artisan cipi:anonymize <config> <output>` | Run an anonymized dump directly from the CLI           |
 
 ---
 
@@ -465,12 +463,12 @@ Cipi Agent is designed with a **defense-in-depth** approach. Every feature has i
 
 Each feature uses a **dedicated Bearer token**. Compromising one token does not grant access to other features:
 
-| Feature | Token variable | Middleware |
-| --- | --- | --- |
-| Webhook deploy | `CIPI_WEBHOOK_TOKEN` | `VerifyWebhookToken` |
-| Health check | `CIPI_HEALTH_TOKEN` | `VerifyHealthToken` |
-| MCP server | `CIPI_MCP_TOKEN` | `VerifyMcpToken` |
-| DB anonymizer | `CIPI_ANONYMIZER_TOKEN` | `VerifyAnonymizerToken` |
+| Feature        | Token variable          | Middleware              |
+| -------------- | ----------------------- | ----------------------- |
+| Webhook deploy | `CIPI_WEBHOOK_TOKEN`    | `VerifyWebhookToken`    |
+| Health check   | `CIPI_HEALTH_TOKEN`     | `VerifyHealthToken`     |
+| MCP server     | `CIPI_MCP_TOKEN`        | `VerifyMcpToken`        |
+| DB anonymizer  | `CIPI_ANONYMIZER_TOKEN` | `VerifyAnonymizerToken` |
 
 ### Feature Gating
 
