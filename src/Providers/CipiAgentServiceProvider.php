@@ -4,10 +4,11 @@ namespace Cipi\Agent\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Cipi\Agent\Console\Commands\CipiAnonymizeCommand;
-use Cipi\Agent\Console\Commands\CipiAnonymizerTokenCommand;
 use Cipi\Agent\Console\Commands\CipiDeployKeyCommand;
-use Cipi\Agent\Console\Commands\CipiHealthTokenCommand;
+use Cipi\Agent\Console\Commands\CipiGenerateTokenCommand;
+use Cipi\Agent\Console\Commands\CipiInitAnonymizeCommand;
 use Cipi\Agent\Console\Commands\CipiMcpCommand;
+use Cipi\Agent\Console\Commands\CipiServiceCommand;
 use Cipi\Agent\Console\Commands\CipiStatusCommand;
 
 class CipiAgentServiceProvider extends ServiceProvider
@@ -25,7 +26,6 @@ class CipiAgentServiceProvider extends ServiceProvider
         // Publish config
         $this->publishes([
             __DIR__ . '/../../config/cipi.php' => config_path('cipi.php'),
-            __DIR__ . '/../../config/anonymization.example.json' => base_path('anonymization.example.json'),
         ], 'cipi-config');
 
         // Publish views
@@ -41,9 +41,10 @@ class CipiAgentServiceProvider extends ServiceProvider
             $this->commands([
                 CipiStatusCommand::class,
                 CipiDeployKeyCommand::class,
-                CipiHealthTokenCommand::class,
+                CipiGenerateTokenCommand::class,
+                CipiServiceCommand::class,
                 CipiMcpCommand::class,
-                CipiAnonymizerTokenCommand::class,
+                CipiInitAnonymizeCommand::class,
                 CipiAnonymizeCommand::class,
             ]);
         }

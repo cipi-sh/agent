@@ -35,11 +35,10 @@ class DatabaseController extends Controller
             return response()->json(['error' => 'App user not configured'], 500);
         }
 
-        // Find anonymization config file
+        // Find anonymization config file — must live on the server, outside the project repo
         $configPaths = [
+            "/home/{$appUser}/.db/anonymization.json",
             "/home/{$appUser}/.cipi/anonymization.json",
-            "/home/{$appUser}/anonymization.json",
-            storage_path('cipi/anonymization.json'),
         ];
 
         $configPath = null;
@@ -53,8 +52,8 @@ class DatabaseController extends Controller
         if (!$configPath) {
             return response()->json([
                 'error' => 'Configuration file not found',
-                'message' => 'Place your anonymization.json config file in one of these locations: ' .
-                    implode(', ', array_map(fn($p) => basename($p), $configPaths))
+                'message' => 'Place your anonymization.json config file on the server at one of: ' .
+                    implode(', ', $configPaths),
             ], 404);
         }
 

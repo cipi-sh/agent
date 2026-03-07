@@ -4,7 +4,26 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
-## [1.1] — 2026-03-07
+## [1.1.1] — 2026-03-07
+
+### Added
+
+- **`php artisan cipi:generate-token {type}`** — unified command replacing the separate `cipi:health-token` and `cipi:anonymizer-token` commands. Accepts `mcp`, `health`, or `anonymize` as argument.
+- **`php artisan cipi:service {type} --enable|--disable`** — new command to toggle Cipi services directly from the CLI. Reads and updates the `.env` file in place. Supports `mcp`, `health`, and `anonymize`.
+- **`php artisan cipi:init-anonymize`** — scaffolds `/home/{app_user}/.db/anonymization.json` from the built-in example. Supports `--force` to overwrite. The file is created outside the project repo with permissions `0640`.
+
+### Changed (Breaking)
+
+- **`cipi:health-token` removed** — replaced by `php artisan cipi:generate-token health`.
+- **`cipi:anonymizer-token` removed** — replaced by `php artisan cipi:generate-token anonymize`.
+- **`cipi:mcp --token` removed** — replaced by `php artisan cipi:generate-token mcp`.
+- **`CIPI_MCP_ENABLED` renamed to `CIPI_MCP`** — shorter, consistent naming. Update your `.env` accordingly.
+- **`CIPI_ANONYMIZER_ENABLED` renamed to `CIPI_ANONYMIZER`** — shorter, consistent naming. Update your `.env` accordingly.
+- **`anonymization.json` must now live on the server** — the file is no longer published to the project root and `storage/cipi/anonymization.json` is no longer a valid search path. Place the file at `/home/{app_user}/.db/anonymization.json` (recommended) or `/home/{app_user}/.cipi/anonymization.json` on the server to keep sensitive field mappings out of version control.
+
+---
+
+## [1.1.0] — 2026-03-07
 
 ### Added
 
@@ -35,7 +54,7 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ### Changed (Breaking)
 
-- **`CIPI_MCP_ENABLED` default is now `false`** — MCP endpoint must be explicitly enabled by setting `CIPI_MCP_ENABLED=true` in `.env`. Previously defaulted to `true`.
+- **`CIPI_MCP` default is now `false`** — MCP endpoint must be explicitly enabled by setting `CIPI_MCP=true` in `.env`. Previously defaulted to `true`.
 
 ### Security
 
@@ -66,7 +85,7 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 - **MCP server** — new `/cipi/mcp` HTTP endpoint implementing the Model Context Protocol (MCP 2024-11-05, JSON-RPC 2.0). AI assistants such as Cursor and Claude Desktop can connect to it directly using the existing `CIPI_WEBHOOK_TOKEN` as a Bearer token.
 - **MCP tools** — five tools exposed via the MCP endpoint: `health` (app/db/cache/queue status), `app_info` (full application configuration), `deploy` (trigger a zero-downtime deployment), `logs` (read recent lines from `storage/logs/laravel.log`), and `artisan` (run Artisan commands with a blocklist for long-running ones).
 - **`php artisan cipi:mcp`** — new Artisan command that prints the MCP endpoint URL and ready-to-paste config snippets for both Cursor (native HTTP) and Claude Desktop (via `mcp-remote` bridge).
-- **`CIPI_MCP_ENABLED`** — new `.env` variable to enable or disable the MCP endpoint (default: `true`).
+- **`CIPI_MCP`** — new `.env` variable to enable or disable the MCP endpoint (default: `true`).
 
 ---
 

@@ -61,9 +61,9 @@ php artisan vendor:publish --tag=cipi-config
 | `CIPI_HEALTH_CHECK`       | `true`                   | Enable/disable the health check endpoint                               |
 | `CIPI_HEALTH_TOKEN`       | `""`                     | Dedicated Bearer token for health check access (falls back to `CIPI_WEBHOOK_TOKEN`) |
 | `CIPI_LOG_CHANNEL`        | `null`                   | Laravel log channel for deploy events                                  |
-| `CIPI_MCP_ENABLED`        | `false`                  | Enable the MCP server endpoint                                         |
+| `CIPI_MCP`                | `false`                  | Enable the MCP server endpoint                                         |
 | `CIPI_MCP_TOKEN`          | `""`                     | Dedicated Bearer token for MCP access                                  |
-| `CIPI_ANONYMIZER_ENABLED` | `false`                  | Enable the database anonymizer endpoints                               |
+| `CIPI_ANONYMIZER`         | `false`                  | Enable the database anonymizer endpoints                               |
 | `CIPI_ANONYMIZER_TOKEN`   | `""`                     | Bearer token for database anonymizer access                            |
 
 
@@ -103,7 +103,7 @@ Set `CIPI_DEPLOY_BRANCH=main` to ignore pushes to other branches.
 **Generate a dedicated token:**
 
 ```bash
-php artisan cipi:health-token
+php artisan cipi:generate-token health
 ```
 
 ```bash
@@ -149,13 +149,13 @@ The MCP (Model Context Protocol) server lets AI assistants — Cursor, Claude De
 **1. Enable the feature:**
 
 ```
-CIPI_MCP_ENABLED=true
+CIPI_MCP=true
 ```
 
 **2. Generate a dedicated token:**
 
 ```bash
-php artisan cipi:mcp --token
+php artisan cipi:generate-token mcp
 ```
 
 **3. Add the token to `.env`:**
@@ -210,13 +210,13 @@ Creates anonymized database dumps by replacing sensitive data with Faker-generat
 **1. Enable the feature:**
 
 ```
-CIPI_ANONYMIZER_ENABLED=true
+CIPI_ANONYMIZER=true
 ```
 
 **2. Generate a token:**
 
 ```bash
-php artisan cipi:anonymizer-token
+php artisan cipi:generate-token anonymize
 ```
 
 **3. Add the token to `.env`:**
@@ -225,13 +225,21 @@ php artisan cipi:anonymizer-token
 CIPI_ANONYMIZER_TOKEN=your_generated_token_here
 ```
 
-**4. Create an `anonymization.json` configuration file** at one of:
+**4. Generate the `anonymization.json` configuration file on the server:**
 
-- `/home/{app_user}/.cipi/anonymization.json`
-- `/home/{app_user}/anonymization.json`
-- `storage/cipi/anonymization.json`
+```bash
+php artisan cipi:init-anonymize
+```
 
-An example file is published alongside the config:
+This creates `/home/{app_user}/.db/anonymization.json` from the built-in example (use `--force` to overwrite an existing file). The file lives **outside the project repository** — developers with repo access cannot view or modify the anonymization rules.
+
+Then edit the file to match your actual tables and sensitive columns:
+
+```
+/home/{app_user}/.db/anonymization.json
+```
+
+Example structure:
 
 ```json
 {
@@ -319,15 +327,22 @@ php artisan cipi:anonymize /path/to/anonymization.json /path/to/output.sql
 ## Artisan Commands
 
 
-| Command                                        | Description                                               |
-| ---------------------------------------------- | --------------------------------------------------------- |
-| `php artisan cipi:status`                      | Shows agent configuration and live database connectivity  |
-| `php artisan cipi:deploy-key`                  | Prints the SSH deploy key for the app                     |
-| `php artisan cipi:health-token`                | Generates a secure `CIPI_HEALTH_TOKEN`                    |
-| `php artisan cipi:mcp`                         | Prints MCP endpoint URL and client configuration snippets |
-| `php artisan cipi:mcp --token`                 | Generates and prints a new `CIPI_MCP_TOKEN`               |
-| `php artisan cipi:anonymizer-token`            | Generates a secure `CIPI_ANONYMIZER_TOKEN`                |
-| `php artisan cipi:anonymize <config> <output>` | Creates an anonymized dump directly                       |
+| Command                                            | Description                                               |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| `php artisan cipi:status`                          | Shows agent configuration and live database connectivity  |
+| `php artisan cipi:deploy-key`                      | Prints the SSH deploy key for the app                     |
+| `php artisan cipi:generate-token mcp`              | Generates a secure `CIPI_MCP_TOKEN`                       |
+| `php artisan cipi:generate-token health`           | Generates a secure `CIPI_HEALTH_TOKEN`                    |
+| `php artisan cipi:generate-token anonymize`        | Generates a secure `CIPI_ANONYMIZER_TOKEN`                |
+| `php artisan cipi:service mcp --enable`            | Enables the MCP server (`CIPI_MCP=true`)                  |
+| `php artisan cipi:service mcp --disable`           | Disables the MCP server (`CIPI_MCP=false`)                |
+| `php artisan cipi:service health --enable`         | Enables the health check (`CIPI_HEALTH_CHECK=true`)       |
+| `php artisan cipi:service health --disable`        | Disables the health check (`CIPI_HEALTH_CHECK=false`)     |
+| `php artisan cipi:service anonymize --enable`      | Enables the DB anonymizer (`CIPI_ANONYMIZER=true`)        |
+| `php artisan cipi:service anonymize --disable`     | Disables the DB anonymizer (`CIPI_ANONYMIZER=false`)      |
+| `php artisan cipi:mcp`                             | Prints MCP endpoint URL and client configuration snippets |
+| `php artisan cipi:init-anonymize`                  | Creates `~/.db/anonymization.json` from the built-in example |
+| `php artisan cipi:anonymize <config> <output>`     | Creates an anonymized dump directly                       |
 
 
 ---

@@ -116,7 +116,7 @@ return [
     | Run `php artisan cipi:mcp` to get the client configuration snippet.
     |
     */
-    'mcp_enabled' => env('CIPI_MCP_ENABLED', false),
+    'mcp_enabled' => env('CIPI_MCP', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -139,7 +139,7 @@ return [
     |
     |
     */
-    'anonymizer_enabled' => env('CIPI_ANONYMIZER_ENABLED', false),
+    'anonymizer_enabled' => env('CIPI_ANONYMIZER', false),
 
     /*
     |--------------------------------------------------------------------------
