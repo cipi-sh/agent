@@ -4,6 +4,12 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
+## [1.1.3] — 2026-03-07
+
+### Fixed
+
+- **`DatabaseController::findUserByEmail()` missing `DB` import** — fixed `Error: Class "Cipi\Agent\Http\Controllers\DB" not found` (HTTP 500) on `POST /cipi/db/user` caused by a missing `use Illuminate\Support\Facades\DB;` import.
+
 ## [1.1.2] — 2026-03-07
 
 ### Fixed
