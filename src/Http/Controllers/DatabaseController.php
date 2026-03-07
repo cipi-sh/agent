@@ -14,13 +14,7 @@ class DatabaseController extends Controller
 {
     public function startAnonymization(Request $request): JsonResponse
     {
-        // Only enable if token is configured
-        if (!config('cipi.anonymizer_enabled')) {
-            return response()->json([
-                'error' => 'Database anonymizer not configured',
-                'message' => 'Set CIPI_ANONYMIZER_TOKEN in your environment to enable this feature'
-            ], 403);
-        }
+
 
         // Validate request
         $validator = Validator::make($request->all(), [
@@ -60,7 +54,7 @@ class DatabaseController extends Controller
             return response()->json([
                 'error' => 'Configuration file not found',
                 'message' => 'Place your anonymization.json config file in one of these locations: ' .
-                           implode(', ', array_map(fn($p) => basename($p), $configPaths))
+                    implode(', ', array_map(fn($p) => basename($p), $configPaths))
             ], 404);
         }
 
@@ -138,5 +132,53 @@ class DatabaseController extends Controller
             'Content-Type' => 'application/sql',
             'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
         ])->deleteFileAfterSend(false); // Keep file for potential re-downloads
+    }
+
+    public function findUserByEmail(Request $request): JsonResponse
+    {
+        // Only enable if token is configured
+        if (!config('cipi.anonymizer_enabled')) {
+            return response()->json([
+                'error' => 'Database anonymizer not configured',
+                'message' => 'Set CIPI_ANONYMIZER_TOKEN in your environment to enable this feature'
+            ], 403);
+        }
+
+        // Validate request
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'details' => $validator->errors()
+            ], 422);
+        }
+
+        $email = $request->input('email');
+
+        try {
+            // Find user by email
+            $user = DB::table('users')->where('email', $email)->first();
+
+            if (!$user) {
+                return response()->json([
+                    'error' => 'User not found',
+                    'message' => "No user found with email: {$email}"
+                ], 404);
+            }
+
+            return response()->json([
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'found_at' => now()->toIso8601String(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Database query failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

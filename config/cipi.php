@@ -103,7 +103,7 @@ return [
     | Run `php artisan cipi:mcp` to get the client configuration snippet.
     |
     */
-    'mcp_enabled' => env('CIPI_MCP_ENABLED', true),
+    'mcp_enabled' => env('CIPI_MCP_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -124,11 +124,9 @@ return [
     | Enable the database anonymization feature. When enabled, provides endpoints
     | to create anonymized database dumps for local development/testing.
     |
-    | Requires CIPI_ANONYMIZER_TOKEN to be set. Use `php artisan cipi:anonymizer-token`
-    | to generate a secure token.
     |
     */
-    'anonymizer_enabled' => env('CIPI_ANONYMIZER_TOKEN') ? true : false,
+    'anonymizer_enabled' => env('CIPI_ANONYMIZER_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -141,4 +139,3 @@ return [
     */
     'anonymizer_token' => env('CIPI_ANONYMIZER_TOKEN', ''),
 
-];
