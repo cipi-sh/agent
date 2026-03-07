@@ -4,6 +4,14 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
+## [1.1.2] — 2026-03-07
+
+### Fixed
+
+- **`DatabaseController::downloadAnonymized()` return type** — fixed `TypeError` (HTTP 500) on `GET /cipi/db/{token}` caused by a return type mismatch: the method declared `Illuminate\Http\Response` but `response()->file()` returns `Symfony\Component\HttpFoundation\BinaryFileResponse`. Changed the import to `Symfony\Component\HttpFoundation\Response` (the common base class) so the declaration is compatible with the actual return value.
+
+---
+
 ## [1.1.1] — 2026-03-07
 
 ### Added

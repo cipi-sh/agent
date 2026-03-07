@@ -8,91 +8,65 @@ class CipiGenerateTokenCommand extends Command
 {
     protected $signature = 'cipi:generate-token {type : Token type to generate (mcp, health, anonymize)}';
 
-    protected $description = 'Generate a new secure token for a Cipi feature (mcp, health, anonymize)';
+    protected $description = 'Generate a new secure token for a Cipi feature and write it to .env (mcp, health, anonymize)';
 
-    private const TYPES = ['mcp', 'health', 'anonymize'];
+    private const TOKENS = [
+        'mcp'       => ['prefix' => 'cipi_mcp_',        'env_key' => 'CIPI_MCP_TOKEN'],
+        'health'    => ['prefix' => 'cipi_health_',     'env_key' => 'CIPI_HEALTH_TOKEN'],
+        'anonymize' => ['prefix' => 'cipi_anonymizer_', 'env_key' => 'CIPI_ANONYMIZER_TOKEN'],
+    ];
 
     public function handle(): int
     {
         $type = strtolower($this->argument('type'));
 
-        if (! in_array($type, self::TYPES)) {
-            $this->components->error("Invalid token type \"{$type}\". Allowed values: " . implode(', ', self::TYPES));
+        if (! array_key_exists($type, self::TOKENS)) {
+            $this->components->error("Invalid token type \"{$type}\". Allowed values: " . implode(', ', array_keys(self::TOKENS)));
             return self::FAILURE;
         }
 
-        return match ($type) {
-            'mcp'       => $this->generateMcpToken(),
-            'health'    => $this->generateHealthToken(),
-            'anonymize' => $this->generateAnonymizerToken(),
-        };
-    }
+        $config  = self::TOKENS[$type];
+        $token   = $config['prefix'] . bin2hex(random_bytes(32));
+        $envKey  = $config['env_key'];
 
-    private function generateMcpToken(): int
-    {
-        $token = 'cipi_mcp_' . bin2hex(random_bytes(32));
+        if (! $this->writeEnv($envKey, $token)) {
+            $this->components->error('Could not write to .env file. Make sure it exists and is writable.');
+            $this->newLine();
+            $this->line("  Add manually: <fg=yellow>{$envKey}={$token}</>");
+            return self::FAILURE;
+        }
 
-        $this->components->info('Generated new MCP token');
+        $this->components->info("Generated new {$type} token and saved to .env");
         $this->newLine();
         $this->line("  <fg=cyan>{$token}</>");
         $this->newLine();
-
-        $this->components->info('Add this to your .env file:');
-        $this->line("  <fg=yellow>CIPI_MCP_TOKEN={$token}</>");
+        $this->line("  <fg=green>{$envKey}</> updated in <fg=green>.env</>");
         $this->newLine();
-
-        $this->components->warn('Keep this token secure — it provides access to sensitive application operations.');
-        $this->line('  Never commit it to version control or share it publicly.');
+        $this->components->warn('Keep this token secure — never commit it to version control or share it publicly.');
 
         return self::SUCCESS;
     }
 
-    private function generateHealthToken(): int
+    private function writeEnv(string $key, string $value): bool
     {
-        $token = 'cipi_health_' . bin2hex(random_bytes(32));
+        $envPath = app()->environmentFilePath();
 
-        $this->components->info('Generated new health check token');
-        $this->newLine();
-        $this->line("  <fg=cyan>{$token}</>");
-        $this->newLine();
+        if (! file_exists($envPath) || ! is_writable($envPath)) {
+            return false;
+        }
 
-        $this->components->info('Add this to your .env file:');
-        $this->line("  <fg=yellow>CIPI_HEALTH_TOKEN={$token}</>");
-        $this->newLine();
+        $contents = file_get_contents($envPath);
+        $entry    = "{$key}={$value}";
+        $pattern  = "/^{$key}=.*/m";
 
-        $this->components->warn('Keep this token secure — it provides access to health check information.');
-        $this->line('  Never commit it to version control or share it publicly.');
-        $this->newLine();
+        if (preg_match($pattern, $contents)) {
+            $contents = preg_replace($pattern, $entry, $contents);
+        } else {
+            $contents = rtrim($contents) . PHP_EOL . $entry . PHP_EOL;
+        }
 
-        $this->components->info('Once set, use the token to call the health check endpoint:');
-        $prefix = config('cipi.route_prefix', 'cipi');
-        $this->line("  GET /{$prefix}/health");
-        $this->line('  Authorization: Bearer <token>');
+        file_put_contents($envPath, $contents);
 
-        return self::SUCCESS;
-    }
-
-    private function generateAnonymizerToken(): int
-    {
-        $token = 'cipi_anonymizer_' . bin2hex(random_bytes(32));
-
-        $this->components->info('Generated new database anonymizer token');
-        $this->newLine();
-        $this->line("  <fg=cyan>{$token}</>");
-        $this->newLine();
-
-        $this->components->info('Add this to your .env file:');
-        $this->line("  <fg=yellow>CIPI_ANONYMIZER_TOKEN={$token}</>");
-        $this->newLine();
-
-        $this->components->warn('Keep this token secure — it provides access to database anonymization operations.');
-        $this->line('  Never commit it to version control or share it publicly.');
-        $this->newLine();
-
-        $this->components->info('Once set, the following endpoints will be available:');
-        $this->line('  POST /cipi/db - Start anonymization job');
-        $this->line('  GET  /cipi/db/{token} - Download anonymized database dump');
-
-        return self::SUCCESS;
+        return true;
     }
 }
