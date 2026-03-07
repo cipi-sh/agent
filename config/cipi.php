@@ -139,3 +139,4 @@ return [
     */
     'anonymizer_token' => env('CIPI_ANONYMIZER_TOKEN', ''),
 
+];
