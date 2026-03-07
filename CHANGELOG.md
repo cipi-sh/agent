@@ -29,6 +29,10 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 - **Dedicated middleware** — Created separate middleware classes (`VerifyMcpToken`, `VerifyAnonymizerToken`) for better separation of concerns. Each endpoint now uses the appropriate middleware for its specific token type.
 - **Enhanced `cipi:mcp` command** — now shows `CIPI_MCP_TOKEN` in setup instructions and supports `--token` flag for token generation.
 
+### Changed (Breaking)
+
+- **`CIPI_MCP_ENABLED` default is now `false`** — MCP endpoint must be explicitly enabled by setting `CIPI_MCP_ENABLED=true` in `.env`. Previously defaulted to `true`.
+
 ### Security
 
 - **Token isolation** — separate tokens for different functionalities prevent cross-feature access.
