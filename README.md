@@ -5,13 +5,6 @@
   Automated deployments, health monitoring, AI-powered management, and database anonymization — all in one package.
 </p>
 
-<p align="center">
-  <a href="https://packagist.org/packages/andreapollastri/cipi-agent">Latest Version on Packagist</a> &middot;
-  <a href="https://www.php.net">PHP 8.1+</a> &middot;
-  <a href="https://laravel.com">Laravel 10 / 11 / 12</a> &middot;
-  <a href="LICENSE">MIT License</a>
-</p>
-
 ---
 
 ## What is Cipi Agent?
@@ -49,8 +42,8 @@ All features are configurable via environment variables with zero boilerplate. W
 
 | Requirement | Version                                      |
 | ----------- | -------------------------------------------- |
-| PHP         | 8.1 or higher                                |
-| Laravel     | 10, 11, or 12                                |
+| PHP         | 8.3 or higher                                |
+| Laravel     | 12 or higher                                 |
 | Database    | MySQL or PostgreSQL (for the anonymizer)     |
 | CLI tools   | `mysqldump` / `pg_dump` (for the anonymizer) |
 
