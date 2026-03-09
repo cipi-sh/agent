@@ -1,5 +1,5 @@
 {
-  "name": "cipi-sh/agent",
+  "name": "cipi/agent",
   "description": "Cipi Agent for Laravel — webhook deploy, health check, and server integration",
   "keywords": [
     "cipi",
