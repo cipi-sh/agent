@@ -4,6 +4,14 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
+## [1.1.4] — 2026-03-16
+
+### Added
+
+- **Laravel 13 support** — updated `illuminate/support`, `illuminate/routing`, and `illuminate/console` constraints from `^12.0` to `^12.0|^13.0`. All existing features (webhook deploy, health check, MCP server, database anonymizer) are fully compatible with Laravel 13.
+
+---
+
 ## [1.1.3] — 2026-03-07
 
 ### Fixed
