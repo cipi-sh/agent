@@ -1,6 +1,14 @@
 # Changelog
 
-All notable changes to `andreapollastri/cipi-agent` are documented here.
+All notable changes to `cipi/agent` are documented here.
+
+---
+
+## [1.5.3] — 2026-03-16
+
+### Changed
+
+- **Package name** — renamed from `andreapollastri/cipi-agent` to `cipi/agent`. Update your `composer.json` and run `composer require cipi/agent` for new installations.
 
 ---
 

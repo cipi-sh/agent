@@ -52,7 +52,7 @@ All features are configurable via environment variables with zero boilerplate. W
 ## Installation
 
 ```bash
-composer require andreapollastri/cipi-agent
+composer require cipi/agent
 ```
 
 The service provider is **auto-discovered** — no changes to `config/app.php` are needed.
