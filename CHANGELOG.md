@@ -4,7 +4,7 @@ All notable changes to `andreapollastri/cipi-agent` are documented here.
 
 ---
 
-## [1.1.4] — 2026-03-16
+## [1.5.2] — 2026-03-16
 
 ### Added
 
