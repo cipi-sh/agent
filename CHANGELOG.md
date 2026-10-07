@@ -4,6 +4,14 @@ All notable changes to `cipi/agent` are documented here.
 
 ---
 
+## [1.5.4] — 2026-10-07
+
+### Fixed
+
+- **`cipi:service` and `cipi:generate-token` said to restart PHP-FPM** after writing `.env`. On a Cipi server the configuration is cached on every deploy (`artisan optimize`), so a restart changed nothing and the MCP endpoint (or health check, anonymizer) kept answering 404 with the old value. Both commands now rebuild the configuration cache when one exists (`config:cache`) and say the change is live; without a cache they say it applies to the next request. Octane, Horizon and queue workers are reminded that they keep the old value until they restart.
+
+---
+
 ## [1.5.3] — 2026-03-16
 
 ### Changed

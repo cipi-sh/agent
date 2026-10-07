@@ -2,10 +2,13 @@
 
 namespace Cipi\Agent\Console\Commands;
 
+use Cipi\Agent\Console\Concerns\AppliesEnvChanges;
 use Illuminate\Console\Command;
 
 class CipiGenerateTokenCommand extends Command
 {
+    use AppliesEnvChanges;
+
     protected $signature = 'cipi:generate-token {type : Token type to generate (mcp, health, anonymize)}';
 
     protected $description = 'Generate a new secure token for a Cipi feature and write it to .env (mcp, health, anonymize)';
@@ -43,6 +46,8 @@ class CipiGenerateTokenCommand extends Command
         $this->line("  <fg=green>{$envKey}</> updated in <fg=green>.env</>");
         $this->newLine();
         $this->components->warn('Keep this token secure — never commit it to version control or share it publicly.');
+        $this->newLine();
+        $this->applyEnvChanges();
 
         return self::SUCCESS;
     }

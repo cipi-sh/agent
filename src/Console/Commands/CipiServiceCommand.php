@@ -2,10 +2,13 @@
 
 namespace Cipi\Agent\Console\Commands;
 
+use Cipi\Agent\Console\Concerns\AppliesEnvChanges;
 use Illuminate\Console\Command;
 
 class CipiServiceCommand extends Command
 {
+    use AppliesEnvChanges;
+
     protected $signature = 'cipi:service
                             {type : Service to manage (mcp, health, anonymize)}
                             {--enable : Enable the service}
@@ -56,7 +59,7 @@ class CipiServiceCommand extends Command
         $this->newLine();
         $this->line("  <fg=cyan>{$envKey}</>=<fg={$color}>{$value}</>");
         $this->newLine();
-        $this->components->warn('Remember to restart your PHP-FPM or web server for the change to take effect.');
+        $this->applyEnvChanges();
 
         return self::SUCCESS;
     }
