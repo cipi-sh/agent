@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cipi.sh/schema/anonymization.schema.json",
+  "title": "Cipi Agent anonymization.json",
+  "description": "Database anonymization config for cipi/agent: which columns get which transformation, which tables are emptied in the dump, and the run options. Lives outside the repository (/home/<app>/.db/anonymization.json).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transformations"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "type": "string" },
+    "transformations": {
+      "type": "object",
+      "description": "table → column → transformation",
+      "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_.$-]{0,127}$" },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_$-]{0,127}$" },
+        "additionalProperties": { "$ref": "#/$defs/transformation" }
+      }
+    },
+    "truncate": {
+      "type": "array",
+      "description": "Tables whose rows are dropped from the dump (structure is kept): sessions, jobs, tokens, Telescope, …",
+      "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.$-]{0,127}$" },
+      "uniqueItems": true
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hash_algorithm": { "type": "string", "enum": ["auto", "bcrypt", "argon", "argon2id", "argon2i", "argon2d"], "default": "auto", "description": "auto = the app's Hash driver" },
+        "password": { "type": "string", "minLength": 1, "default": "password", "description": "Plaintext every `password` column is set to (hashed once)" },
+        "faker_locale": { "type": "string", "pattern": "^[a-z]{2,3}(_[A-Za-z]{2,4})?$", "default": "en_US" },
+        "consistent": { "type": "boolean", "default": false, "description": "Same original value → same fake value across tables and runs (with the same seed)" },
+        "seed": { "type": ["string", "integer", "null"], "default": null, "description": "Seed for consistent mode and hash" },
+        "gzip": { "type": "boolean", "default": false },
+        "preserve_ids": { "type": "boolean", "default": true, "description": "Accepted for compatibility; ids are never touched" },
+        "connection": { "type": ["string", "null"], "default": null, "description": "config/database.php connection to dump (default connection when null)" },
+        "dump_args": { "type": "array", "items": { "type": "string", "pattern": "^--?[A-Za-z0-9][A-Za-z0-9_.=,:/-]*$" }, "description": "Extra flags for mysqldump / pg_dump" }
+      }
+    }
+  },
+  "$defs": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "fakeName", "fakeFirstName", "fakeLastName", "fakeUserName", "fakeEmail", "fakeSafeEmail", "fakeCompany",
+        "fakeJobTitle", "fakeAddress", "fakeStreetAddress", "fakeCity", "fakeState", "fakePostcode", "fakeCountry",
+        "fakeCountryCode", "fakePhoneNumber", "fakeDate", "fakeDateTime", "fakeUrl", "fakeDomain", "fakeParagraph",
+        "fakeSentence", "fakeText", "fakeWord", "fakeIban", "fakeCreditCardNumber", "fakeIpv4", "fakeIpv6",
+        "fakeMacAddress", "fakeUserAgent", "fakeUuid", "fakeLatitude", "fakeLongitude", "fakeNumber", "fakeBoolean",
+        "fakeToken", "fakeIdentifier", "numerify", "lexify", "bothify", "password", "null", "empty", "fixed", "hash",
+        "mask", "redact", "keep"
+      ]
+    },
+    "transformation": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Transformation name, optionally with an argument after a colon: fixed:ACME, numerify:###-###, mask:1,2, hash:32, fakeText:80, fakeToken:60",
+          "pattern": "^(fakeName|fakeFirstName|fakeLastName|fakeUserName|fakeEmail|fakeSafeEmail|fakeCompany|fakeJobTitle|fakeAddress|fakeStreetAddress|fakeCity|fakeState|fakePostcode|fakeCountry|fakeCountryCode|fakePhoneNumber|fakeDate|fakeDateTime|fakeUrl|fakeDomain|fakeParagraph|fakeSentence|fakeText|fakeWord|fakeIban|fakeCreditCardNumber|fakeIpv4|fakeIpv6|fakeMacAddress|fakeUserAgent|fakeUuid|fakeLatitude|fakeLongitude|fakeNumber|fakeBoolean|fakeToken|fakeIdentifier|numerify|lexify|bothify|password|null|empty|fixed|hash|mask|redact|keep)(:.*)?$"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "$ref": "#/$defs/type" },
+            "value": { "type": ["string", "number", "boolean"], "description": "Argument (constant for fixed, pattern for numerify/lexify/bothify, length for hash/fakeText/fakeToken, keep-counts for mask)" },
+            "pattern": { "type": "string" },
+            "length": { "type": "integer" },
+            "unique": { "type": "boolean", "description": "No two rows of this column get the same value (default true for fakeEmail, fakeSafeEmail, fakeUserName, fakeUuid, fakeToken, fakeIban)" },
+            "consistent": { "type": "boolean", "description": "Same original → same fake (overrides options.consistent)" }
+          }
+        }
+      ]
+    }
+  }
+}

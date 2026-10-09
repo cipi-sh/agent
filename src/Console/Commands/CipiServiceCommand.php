@@ -64,26 +64,4 @@ class CipiServiceCommand extends Command
         return self::SUCCESS;
     }
 
-    private function writeEnv(string $key, string $value): bool
-    {
-        $envPath = app()->environmentFilePath();
-
-        if (! file_exists($envPath) || ! is_writable($envPath)) {
-            return false;
-        }
-
-        $contents = file_get_contents($envPath);
-        $entry    = "{$key}={$value}";
-        $pattern  = "/^{$key}=.*/m";
-
-        if (preg_match($pattern, $contents)) {
-            $contents = preg_replace($pattern, $entry, $contents);
-        } else {
-            $contents = rtrim($contents) . PHP_EOL . $entry . PHP_EOL;
-        }
-
-        file_put_contents($envPath, $contents);
-
-        return true;
-    }
 }

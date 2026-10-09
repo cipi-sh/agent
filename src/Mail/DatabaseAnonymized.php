@@ -13,16 +13,17 @@ class DatabaseAnonymized extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
+    /** @param array<string, mixed> $report */
     public function __construct(
         public string $downloadUrl,
-        public string $jobId
+        public string $jobId,
+        public int $expiresInMinutes = 15,
+        public array $report = [],
     ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(
-            subject: 'Database Anonymization Complete - Download Ready',
-        );
+        return new Envelope(subject: 'Database Anonymization Complete - Download Ready');
     }
 
     public function content(): Content
@@ -32,7 +33,8 @@ class DatabaseAnonymized extends Mailable implements ShouldQueue
             with: [
                 'downloadUrl' => $this->downloadUrl,
                 'jobId' => $this->jobId,
-                'expiresIn' => '15 minutes',
+                'expiresIn' => $this->expiresInMinutes.' minutes',
+                'report' => $this->report,
             ],
         );
     }

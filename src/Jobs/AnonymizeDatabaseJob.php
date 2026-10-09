@@ -2,16 +2,16 @@
 
 namespace Cipi\Agent\Jobs;
 
+use Cipi\Agent\Anonymizer\Anonymizer;
+use Cipi\Agent\Anonymizer\Config;
 use Cipi\Agent\Mail\DatabaseAnonymized;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
@@ -19,90 +19,67 @@ class AnonymizeDatabaseJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 3600; // 1 hour timeout
+    public int $timeout = 3600;
+
     public int $tries = 1;
 
     public function __construct(
         public string $email,
         public string $configPath,
-        public ?string $tempDir = null
+        public ?string $tempDir = null,
+        public ?bool $gzip = null,
     ) {}
 
     public function handle(): void
     {
-        $appUser = config('cipi.app_user');
         $jobId = Str::random(32);
+        $ttl = max(1, (int) config('cipi.anonymizer_ttl', 15));
         $outputPath = storage_path("cipi/anonymized_{$jobId}.sql");
 
-        // Ensure output directory exists
-        $outputDir = dirname($outputPath);
-        if (!is_dir($outputDir)) {
-            mkdir($outputDir, 0755, true);
+        if (! is_dir(dirname($outputPath))) {
+            mkdir(dirname($outputPath), 0750, true);
         }
 
         try {
-            Log::info("Starting database anonymization job for {$this->email}", [
-                'job_id' => $jobId,
-                'config' => $this->configPath,
-                'app_user' => $appUser,
-            ]);
+            Log::info("Starting database anonymization job for {$this->email}", ['job_id' => $jobId, 'config' => $this->configPath]);
 
-            // Run the anonymization command
-            $exitCode = Artisan::call('cipi:anonymize', [
-                'config' => $this->configPath,
-                'output' => $outputPath,
-                '--temp-dir' => $this->tempDir ?: sys_get_temp_dir() . "/cipi-job-{$jobId}",
-            ]);
+            $config = Config::load($this->configPath);
+            $report = (new Anonymizer($config))->run($outputPath, $this->tempDir, $this->gzip, fn (string $m) => Log::debug("[anonymizer {$jobId}] {$m}"));
+            $outputPath = $report['output'];
 
-            if ($exitCode !== 0) {
-                throw new \Exception('Anonymization command failed with exit code: ' . $exitCode);
-            }
-
-            // Generate signed download URL (valid for 15 minutes)
             $downloadToken = Str::random(64);
-            $signedUrl = URL::temporarySignedRoute(
-                'cipi.db.download',
-                now()->addMinutes(15),
-                ['token' => $downloadToken]
-            );
+            $expiresAt = now()->addMinutes($ttl);
+            $signedUrl = URL::temporarySignedRoute('cipi.db.download', $expiresAt, ['token' => $downloadToken]);
 
-            // Store the mapping between token and file path
             $tokenFile = storage_path("cipi/tokens/{$downloadToken}.json");
-            $tokenDir = dirname($tokenFile);
-            if (!is_dir($tokenDir)) {
-                mkdir($tokenDir, 0755, true);
+            if (! is_dir(dirname($tokenFile))) {
+                mkdir(dirname($tokenFile), 0750, true);
             }
-
             file_put_contents($tokenFile, json_encode([
                 'file_path' => $outputPath,
                 'email' => $this->email,
                 'created_at' => now()->toIso8601String(),
-                'expires_at' => now()->addMinutes(15)->toIso8601String(),
+                'expires_at' => $expiresAt->toIso8601String(),
             ]));
+            chmod($tokenFile, 0600);
 
-            // Send notification email
-            Mail::to($this->email)->send(new DatabaseAnonymized($signedUrl, $jobId));
+            Mail::to($this->email)->send(new DatabaseAnonymized($signedUrl, $jobId, $ttl, $report));
 
-            Log::info("Database anonymization completed successfully for {$this->email}", [
+            Log::info("Database anonymization completed for {$this->email}", [
                 'job_id' => $jobId,
-                'file_size' => filesize($outputPath),
+                'size' => $report['size'],
+                'rows_transformed' => $report['rows_transformed'],
+                'truncated' => $report['truncated'],
+                'warnings' => $report['warnings'],
             ]);
-
         } catch (\Throwable $e) {
-            Log::error("Database anonymization failed for {$this->email}", [
-                'job_id' => $jobId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            // Send failure notification
+            Log::error("Database anonymization failed for {$this->email}", ['job_id' => $jobId, 'error' => $e->getMessage()]);
             $this->sendFailureNotification($e->getMessage(), $jobId);
-
-            // Cleanup on failure
-            if (file_exists($outputPath)) {
-                unlink($outputPath);
+            foreach ([$outputPath, $outputPath.'.gz'] as $f) {
+                if (is_file($f)) {
+                    @unlink($f);
+                }
             }
-
             throw $e;
         }
     }
@@ -111,16 +88,11 @@ class AnonymizeDatabaseJob implements ShouldQueue
     {
         try {
             Mail::raw(
-                "Database anonymization failed.\n\nError: {$error}\n\nJob ID: {$jobId}\n\nPlease check your configuration and try again.",
-                function ($message) {
-                    $message->to($this->email)
-                            ->subject('Database Anonymization Failed');
-                }
+                "Database anonymization failed.\n\nError: {$error}\n\nJob ID: {$jobId}\n\nCheck the anonymization config (php artisan cipi:anonymize-audit) and try again.",
+                fn ($message) => $message->to($this->email)->subject('Database Anonymization Failed')
             );
         } catch (\Throwable $e) {
-            Log::error("Failed to send failure notification to {$this->email}", [
-                'error' => $e->getMessage(),
-            ]);
+            Log::error("Failed to send failure notification to {$this->email}", ['error' => $e->getMessage()]);
         }
     }
 }

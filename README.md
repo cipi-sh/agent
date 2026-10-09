@@ -2,23 +2,25 @@
 
 <p align="center">
   The official Laravel companion package for the <a href="https://cipi.sh"><strong>Cipi</strong></a> server control panel.<br>
-  Automated deployments, health monitoring, AI-powered management, and database anonymization — all in one package.
+  Webhook deploys, health monitoring, an MCP server for AI assistants, <code>cipi.yml</code> tooling and a database anonymizer — all in one package.
 </p>
 
 ---
 
 ## What is Cipi Agent?
 
-**Cipi Agent** is a Laravel package designed to work alongside the [Cipi](https://cipi.sh) server control panel. While Cipi manages your server infrastructure (LEMP stack, SSL, PHP versions, domains, etc.), this package bridges the gap between your Laravel application and Cipi by providing:
+**Cipi Agent** runs inside your Laravel application on a server managed by [Cipi](https://cipi.sh). Cipi manages the infrastructure (LEMP stack, SSL, PHP versions, domains, workers, backups); this package is the part that lives in the app and bridges the two:
 
-- **Webhook-triggered deployments** from GitHub and GitLab
-- **Real-time health monitoring** of your app, database, cache, and queue
-- **An MCP server** that lets AI assistants (Cursor, Claude Desktop) manage your production app
-- **A database anonymizer** that creates safe, privacy-compliant dumps for local development
+- **Webhook-triggered deployments** from GitHub, GitLab, Bitbucket, Gitea and Azure DevOps, recorded in Cipi's deploy audit ledger
+- **Health monitoring** of app, database, cache, queue (pending and failed jobs), storage and deploy state
+- **An MCP server** that lets AI assistants (Cursor, VS Code, Claude Code, Claude Desktop, any MCP client) inspect and operate the production app
+- **`cipi.yml` tooling** — validate, inspect and generate the declarative server configuration with the same rules as `cipi yml validate` on the server
+- **A database anonymizer** for MySQL/MariaDB **and PostgreSQL** that produces safe, privacy-compliant dumps for local development
+- **Optional panel integration** through [`cipi/sdk`](https://cipi.sh/docs/php-sdk): rollback, deploy audit ledger, database backups and job status from the same MCP server
 
-All features are configurable via environment variables with zero boilerplate. When you create an application through the Cipi panel, the required environment variables are injected automatically.
+Everything is configured through environment variables. When you create an application through Cipi, the core variables are injected automatically.
 
-> **Note:** This package is built to work with servers managed by [Cipi](https://cipi.sh). While some features (health check, MCP server) can work standalone, full functionality — including automated deployments and log access — requires a Cipi-managed environment.
+> **Note:** some features (health check, MCP, `cipi.yml` validation, anonymizer) work on any host. Automated deployments, infrastructure logs and release information require a Cipi-managed environment.
 
 ---
 
@@ -30,22 +32,26 @@ All features are configurable via environment variables with zero boilerplate. W
 - [Webhook Deploy](#webhook-deploy)
 - [Health Check](#health-check)
 - [MCP Server](#mcp-server)
+- [cipi.yml Tooling](#cipiyml-tooling)
 - [Database Anonymizer](#database-anonymizer)
+- [Panel Integration (cipi/sdk)](#panel-integration-cipisdk)
 - [Artisan Commands](#artisan-commands)
 - [Security](#security)
-- [Documentation](#documentation)
+- [Upgrading from 1.x](#upgrading-from-1x)
+- [Development](#development)
 - [License](#license)
 
 ---
 
 ## Requirements
 
-| Requirement | Version                                      |
-| ----------- | -------------------------------------------- |
-| PHP         | 8.3 or higher                                |
-| Laravel     | 12 or higher                                 |
-| Database    | MySQL or PostgreSQL (for the anonymizer)     |
-| CLI tools   | `mysqldump` / `pg_dump` (for the anonymizer) |
+| Requirement | Version                                                   |
+| ----------- | --------------------------------------------------------- |
+| PHP         | 8.3 or higher                                             |
+| Laravel     | 12 or 13                                                  |
+| Database    | MySQL / MariaDB or PostgreSQL (for the anonymizer)        |
+| CLI tools   | `mysqldump` (or `mariadb-dump`) / `pg_dump` on the server |
+| Optional    | `cipi/sdk` ^1.0 for the panel tools, `ext-zlib` for gzip  |
 
 ---
 
@@ -55,15 +61,13 @@ All features are configurable via environment variables with zero boilerplate. W
 composer require cipi/agent
 ```
 
-The service provider is **auto-discovered** — no changes to `config/app.php` are needed.
-
-If your application runs on a Cipi-managed server, the required environment variables are already in place. Otherwise, you can publish the configuration file to customize defaults:
+The service provider is auto-discovered. On a Cipi-managed server the required environment variables are already in place. To customize defaults, publish the configuration:
 
 ```bash
-php artisan vendor:publish --tag=cipi-config
+php artisan vendor:publish --tag=cipi-agent-config
 ```
 
-Verify that everything is configured correctly:
+Check that everything is wired up:
 
 ```bash
 php artisan cipi:status
@@ -73,426 +77,365 @@ php artisan cipi:status
 
 ## Configuration
 
-All settings are driven by environment variables. When Cipi creates your application, it sets the core variables automatically. You only need to configure the optional features you want to enable.
+| Variable                       | Default                  | Description                                                              |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------------ |
+| `CIPI_WEBHOOK_TOKEN`           | `""`                     | Secret for webhook authentication (set by Cipi)                          |
+| `CIPI_APP_USER`                | `""`                     | Linux user of the app (set by Cipi) — locates `/home/<user>`             |
+| `CIPI_HOME`                    | `/home/<app_user>`       | Override the app home directory                                          |
+| `CIPI_PHP_VERSION`             | system PHP               | PHP version assigned by Cipi (set by Cipi)                               |
+| `CIPI_DEPLOY_BRANCH`           | `null`                   | Only deploy pushes to this branch (`null` = any)                         |
+| `CIPI_ROUTE_PREFIX`            | `cipi`                   | URL prefix for all agent routes                                          |
+| `CIPI_LOG_CHANNEL`             | `null`                   | Log channel for deploy events                                            |
+| `CIPI_HEALTH_CHECK`            | `true`                   | Enable the health endpoint                                               |
+| `CIPI_HEALTH_TOKEN`            | `""`                     | Bearer token for the health endpoint (falls back to `CIPI_WEBHOOK_TOKEN`) |
+| `CIPI_MCP`                     | `false`                  | Enable the MCP server                                                    |
+| `CIPI_MCP_TOKEN`               | `""`                     | Bearer token for MCP                                                     |
+| `CIPI_MCP_ALLOWED_ORIGINS`     | app host                 | Browser origins allowed on the MCP endpoint (`*` = any)                  |
+| `CIPI_MCP_DB_WRITE`            | `true`                   | Allow INSERT/UPDATE/DELETE through the `db_query` tool                   |
+| `CIPI_MCP_MAX_ROWS`            | `100`                    | Default row cap for `db_query` (max 500)                                 |
+| `CIPI_MCP_REDACT`              | `true`                   | Redact common secrets in logs and command output sent over MCP           |
+| `CIPI_ANONYMIZER`              | `false`                  | Enable the anonymizer endpoints                                          |
+| `CIPI_ANONYMIZER_TOKEN`        | `""`                     | Bearer token for the anonymizer API                                      |
+| `CIPI_ANONYMIZER_CONFIG`       | `~/.db/anonymization.json` | Explicit path of the anonymization config                              |
+| `CIPI_ANONYMIZER_TTL`          | `15`                     | Minutes a download link stays valid                                      |
+| `CIPI_MYSQLDUMP` / `CIPI_PG_DUMP` | from `PATH`           | Dump binaries, when not on `PATH`                                        |
+| `CIPI_PANEL`                   | `true`                   | Expose the panel tools when `cipi/sdk` is installed and configured       |
+| `CIPI_PANEL_APP`               | `CIPI_APP_USER`          | App name on the panel                                                    |
+| `CIPI_BASE_URL` / `CIPI_TOKEN` | —                        | Panel API URL and Sanctum token (read by `cipi/sdk`)                     |
 
-| Variable                | Default                  | Description                                                        |
-| ----------------------- | ------------------------ | ------------------------------------------------------------------ |
-| `CIPI_WEBHOOK_TOKEN`    | `""`                     | Secret token for webhook authentication (set by Cipi)              |
-| `CIPI_APP_USER`         | `""`                     | Linux username for the app (set by Cipi)                           |
-| `CIPI_PHP_VERSION`      | system PHP               | PHP version reported in health check (set by Cipi)                 |
-| `CIPI_DEPLOY_SCRIPT`    | `~/.deployer/deploy.php` | Path to the Deployer config file (set by Cipi)                     |
-| `CIPI_DEPLOY_BRANCH`    | `null`                   | Only deploy pushes to this branch (`null` = any branch)            |
-| `CIPI_ROUTE_PREFIX`     | `cipi`                   | URL prefix for all Cipi Agent routes                               |
-| `CIPI_LOG_CHANNEL`      | `null`                   | Laravel log channel for deploy events                              |
-| `CIPI_HEALTH_CHECK`     | `true`                   | Enable/disable the health check endpoint                           |
-| `CIPI_HEALTH_TOKEN`     | `""`                     | Bearer token for health check (falls back to `CIPI_WEBHOOK_TOKEN`) |
-| `CIPI_MCP`              | `false`                  | Enable/disable the MCP server endpoint                             |
-| `CIPI_MCP_TOKEN`        | `""`                     | Bearer token for MCP access                                        |
-| `CIPI_ANONYMIZER`       | `false`                  | Enable/disable the database anonymizer                             |
-| `CIPI_ANONYMIZER_TOKEN` | `""`                     | Bearer token for anonymizer access                                 |
-
-You can toggle features directly from the CLI without editing `.env` manually:
+Toggle features and generate tokens from the CLI; the configuration cache is rebuilt for you when one exists:
 
 ```bash
 php artisan cipi:service mcp --enable
-php artisan cipi:service health --disable
+php artisan cipi:generate-token mcp
 php artisan cipi:service anonymize --enable
+php artisan cipi:generate-token anonymize
 ```
 
 ---
 
 ## Webhook Deploy
 
-The webhook endpoint receives push events from your Git provider and writes a `.deploy-trigger` flag file. The Cipi cron picks up this flag and runs [Deployer](https://deployer.org) for zero-downtime deployments.
-
 **Endpoint:** `POST /cipi/webhook`
 
-### Supported Git Providers
+The endpoint verifies the push, then drops `~/.deploy-trigger`. The app's crontab (installed by Cipi) picks it up within a minute and runs `cipi-app-deploy`, which wraps Deployer: clone, `composer install`, migrations, symlink swap, worker restart, `cipi.yml` reconciliation, post-deploy steps and the post-deploy healthcheck.
 
-| Provider   | Authentication method             |
-| ---------- | --------------------------------- |
-| **GitHub** | `X-Hub-Signature-256` HMAC-SHA256 |
-| **GitLab** | `X-Gitlab-Token` header           |
+| Provider     | Verification                                 | Events                                  |
+| ------------ | -------------------------------------------- | --------------------------------------- |
+| GitHub       | `X-Hub-Signature-256` (HMAC-SHA256)          | `push`; `ping` answers `pong`           |
+| GitLab       | `X-Gitlab-Token`                             | `Push Hook`                             |
+| Bitbucket    | `X-Hub-Signature` (`sha256=`)                | `repo:push`                             |
+| Gitea        | `X-Gitea-Signature`                          | `push`                                  |
+| Azure DevOps | `X-Gitlab-Token` (as registered by Cipi)     | `git.push`                              |
 
-### Setup
+Other events are acknowledged with `202 ignored`. With `CIPI_DEPLOY_BRANCH` set, pushes to other branches get `200 skipped`.
 
-1. In your Git provider settings, add a new webhook pointing to:
+**Audit ledger.** The trigger file carries what the payload said about the push — provider, actor, commit, delivery id and the client IP. Cipi records these under `claimed` in the root-owned, hash-chained deploy audit ledger (`cipi deploy <app> --audit`), next to the facts root establishes itself. The same format is used by the MCP `deploy` tool (`source: mcp`), so every deploy says who asked for it.
 
-   ```
-   https://yourdomain.com/cipi/webhook
-   ```
-
-2. Use the value of `CIPI_WEBHOOK_TOKEN` as the webhook secret.
-
-3. Select **push events** as the trigger.
-
-> **Tip:** On Cipi-managed servers, the webhook is configured automatically when you connect your Git repository through the panel.
-
-### Branch Filtering
-
-To deploy only when a specific branch is pushed:
-
-```env
-CIPI_DEPLOY_BRANCH=main
-```
-
-When set, pushes to other branches are acknowledged (HTTP 200) but do not trigger a deploy.
+> On Cipi-managed servers the webhook is configured automatically when you connect the repository through the panel. Use `CIPI_WEBHOOK_TOKEN` as the webhook secret elsewhere.
 
 ---
 
 ## Health Check
 
-A lightweight monitoring endpoint that returns the real-time status of your application and its dependencies.
-
-**Endpoint:** `GET /cipi/health`
-
-### Authentication
-
-Protected by Bearer token. The endpoint resolves the token in this order:
-
-1. `CIPI_HEALTH_TOKEN` (dedicated)
-2. `CIPI_WEBHOOK_TOKEN` (fallback)
-
-Generate a dedicated token:
+**Endpoint:** `GET /cipi/health` — Bearer token (`CIPI_HEALTH_TOKEN`, then `CIPI_WEBHOOK_TOKEN`).
 
 ```bash
 php artisan cipi:generate-token health
+curl -H "Authorization: Bearer $TOKEN" https://yourdomain.com/cipi/health
 ```
-
-### Usage
-
-```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" https://yourdomain.com/cipi/health
-```
-
-### Response Example
 
 ```json
 {
   "status": "healthy",
   "app_user": "myapp",
-  "php": "8.3.0",
-  "laravel": "11.0.0",
+  "php": "8.4",
+  "laravel": "13.35.0",
   "environment": "production",
   "checks": {
-    "app": { "ok": true, "version": "2.1.0", "debug": false },
-    "database": { "ok": true, "database": "myapp_prod" },
-    "cache": { "ok": true },
-    "queue": { "ok": true, "connection": "redis", "pending_jobs": 0 },
+    "app": { "ok": true, "version": "2.1.0", "debug": false, "maintenance": false },
+    "database": { "ok": true, "driver": "mysql", "database": "myapp" },
+    "cache": { "ok": true, "driver": "database" },
+    "queue": { "ok": true, "connection": "database", "pending_jobs": 0, "failed_jobs": 0 },
+    "storage": { "ok": true, "disk_free_gb": 31.2, "disk_used_percent": 41 },
     "deploy": {
       "ok": true,
-      "commit": "a1b2c3d4e5f6...",
-      "short_commit": "a1b2c3d"
+      "release": "20261009103000",
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "short_commit": "0123456",
+      "commit_source": "REVISION",
+      "in_progress": false,
+      "pending": false,
+      "last_deploy": { "status": "ok", "trigger": "webhook", "branch": "main", "duration_seconds": 42 }
     }
   },
-  "timestamp": "2026-03-07T10:00:00.000000Z"
+  "timestamp": "2026-10-09T10:00:00+00:00"
 }
 ```
 
-### Deploy Commit Detection
-
-The last deployed commit is resolved from the first available source:
-
-1. `/home/{app_user}/.cipi/deploy.json` (Cipi deploy metadata)
-2. `/home/{app_user}/.cipi/last_commit`
-3. `/home/{app_user}/logs/deploy.log`
-4. `.git/HEAD`
-5. `git rev-parse HEAD`
-
-### Integration with Monitoring Tools
-
-The health endpoint is ideal for services like **UptimeRobot**, **Grafana**, **Better Stack**, or any monitoring solution that supports HTTP checks with Bearer token authentication.
+`status` is `degraded` (HTTP 503) when the database, cache, queue or storage check fails. The deployed commit is read from Deployer's `REVISION` file of the live release, with fallbacks for apps not deployed by Cipi. A failed last deploy is reported under `deploy.attention` without degrading the status: the previous release is still serving.
 
 ---
 
 ## MCP Server
 
-The **Model Context Protocol** (MCP) server lets AI assistants interact with your production Laravel application through a standard JSON-RPC 2.0 interface. Compatible with **Cursor**, **Claude Desktop**, and any MCP-compatible client.
+**Endpoint:** `POST /cipi/mcp` — Streamable HTTP, JSON-RPC 2.0, Bearer token (`CIPI_MCP_TOKEN`).
 
-**Endpoint:** `POST /cipi/mcp`
+The server speaks every current revision of the [Model Context Protocol](https://modelcontextprotocol.io): the handshake-based revisions **2024-11-05 → 2025-11-25** (`initialize`, used by today's Cursor, VS Code, Claude Desktop…) and the stateless revision **2026-07-28** (`server/discover`, per-request `_meta`, `resultType`, `Mcp-Method`/`Mcp-Name` header validation). Tools carry titles, behaviour annotations (`readOnlyHint`, `destructiveHint`, …) and return both text and `structuredContent`; tool failures use `isError`. `GET`/`DELETE` answer `405` (no SSE stream, no sessions), the `Origin` header is validated against the app host, and notifications get `202`.
 
 ### Setup
 
-**1. Enable the MCP server:**
-
 ```bash
 php artisan cipi:service mcp --enable
-```
-
-**2. Generate a dedicated token:**
-
-```bash
 php artisan cipi:generate-token mcp
+php artisan cipi:mcp          # endpoint, tools and ready-to-paste client configuration
 ```
 
-**3. Get client configuration:**
+`cipi:mcp` prints snippets for **Cursor** (`~/.cursor/mcp.json`), **VS Code** (`.vscode/mcp.json`, token prompted once), **Claude Code** (`claude mcp add --transport http …`) and **Claude Desktop** (via the `mcp-remote` bridge).
+
+### Tools
+
+| Tool             | Mode            | What it does                                                                                                           |
+| ---------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `health`         | read-only       | Same report as `/cipi/health`                                                                                          |
+| `app_info`       | read-only       | Versions, drivers, Cipi endpoints, enabled features, live release and commit (no secrets)                               |
+| `deploy`         | action          | Queue a zero-downtime deploy; records `actor`, `ref`, `request_id` as audit claims; refuses while a deploy is running   |
+| `deploy_status`  | read-only       | Live release and commit, releases kept for rollback, queued/running state, last deploy outcome, deploy log tail        |
+| `logs`           | read-only       | `laravel`, `nginx`, `php`, `worker`, `horizon`, `reverb`, `deploy` or `all`; severity and keyword filters; redacted    |
+| `artisan`        | can change data | Run an Artisan command; interactive, long-running and data-destroying commands are blocked                             |
+| `db_query`       | configurable    | SELECT/WITH/SHOW/DESCRIBE/EXPLAIN as table or JSON (auto-capped); INSERT/UPDATE/DELETE unless `CIPI_MCP_DB_WRITE=false` |
+| `db_schema`      | read-only       | Tables with row counts, or one table's columns, indexes, foreign keys and the columns that look like personal data      |
+| `env_check`      | read-only       | Which `.env` keys are set or empty, vs `.env.example` and `cipi.yml` `env.required` — names only, never values          |
+| `cipi_yml`       | read-only       | `validate`, `show`, `generate` or `example` for `cipi.yml`; validates drafts passed as `content`                        |
+| `anonymizer`     | action          | `audit`, `config`, `scan`, `transformations`, or `start` an anonymized dump                                             |
+| `panel_*`        | see below       | Rollback, deploy audit ledger, DB backup, job status, app/server status through the panel API                           |
+
+**Resources:** `cipi://cipi.yml`, `cipi://cipi.yml/schema`, `cipi://cipi.yml/example`, `cipi://anonymization.json`, `cipi://anonymization.json/schema`.
+
+### Example prompts
+
+- *"Is production healthy, and what commit is live?"*
+- *"Show the last 100 error entries and tell me which job is failing."*
+- *"Which columns of the users table look like personal data?"*
+- *"Validate this cipi.yml draft before I commit it."*
+- *"Queue a deploy and record that Jane asked for it."*
+
+### Safety measures
+
+- **Blocked Artisan commands:** `serve`, `tinker`, `pail`, `queue:work`, `queue:listen`, `schedule:work`, `horizon`, `horizon:work`, `horizon:supervisor`, `octane:start`, `reverb:start`, `db`, `db:wipe`, `migrate:fresh`, `migrate:reset` — extend the list with `cipi.mcp_blocked_artisan`
+- **Blocked SQL:** DDL (`DROP`, `ALTER`, `TRUNCATE`, `CREATE …`), `GRANT`/`REVOKE`, file I/O, administrative statements, multi-statement queries; reads without `LIMIT` are capped
+- **Redaction:** tokens, passwords, DSNs, `APP_KEY`, provider keys are masked in logs and command output; a production-content warning is prepended (`CIPI_MCP_REDACT`)
+- **Origin validation** against the app host (`CIPI_MCP_ALLOWED_ORIGINS` to extend)
+
+---
+
+## cipi.yml Tooling
+
+[`cipi.yml`](https://cipi.sh/cipi-yml) is the declarative file committed with the app that drives its server configuration: PHP version, aliases, php.ini overrides, limits, basic auth, extra databases, workers (queues, Horizon, Reverb), scheduler, healthcheck, deploy recipe and post-deploy steps, redirects, proxies, SSL, required `.env` names, crons and backup profiles. On the server `cipi yml validate|plan|apply` reconcile it.
+
+This package ships the **same parser and validator** (a line-for-line port of the server's), so you get the server's verdict — and the server's exact error messages — locally and in CI:
 
 ```bash
-php artisan cipi:mcp
+php artisan cipi:yml validate              # ./cipi.yml, then the server locations; exit 1 on errors
+php artisan cipi:yml validate --json       # machine-readable, for CI
+php artisan cipi:yml validate --strict     # warnings (e.g. env.required missing in .env) also fail
+php artisan cipi:yml show                  # the normalized document with the server defaults applied
+php artisan cipi:yml generate --write      # a cipi.yml inferred from this Laravel app
+php artisan cipi:yml example --write       # the commented template, in the app's namespace
+php artisan cipi:yml schema --write        # JSON Schema for editor autocompletion
 ```
 
-This prints ready-to-paste configuration snippets for:
+`generate` looks at the application itself: Horizon or plain queue workers (`QUEUE_CONNECTION`), Reverb, Scout with Meilisearch, scheduled tasks, the `/up` health route, `CIPI_PHP_VERSION`, extra databases in the app namespace and the credential-looking keys of `.env.example` for `env.required`. The output is run through the validator before it is returned. `cipi yml generate <app>` on the server remains the source of truth for what is configured *today*.
 
-- **Cursor** — native HTTP transport (direct connection)
-- **Claude Desktop** — via `mcp-remote` bridge
+For editor validation add this as the first line of `cipi.yml` after `cipi:yml schema --write`:
 
-### Available Tools
+```yaml
+# yaml-language-server: $schema=./cipi.schema.json
+```
 
-The MCP server exposes six tools that AI assistants can use to inspect and manage your application:
-
-#### `health` — Application Status
-
-Returns the same comprehensive status as the `/cipi/health` endpoint: app version, database connectivity, cache, queue health, and last deploy commit.
-
-#### `app_info` — Application Configuration
-
-Returns full application configuration and environment details, including Laravel version, PHP version, configured services, and environment settings.
-
-#### `deploy` — Trigger Deployment
-
-Triggers a zero-downtime deployment through the Cipi deploy pipeline. The AI assistant can deploy new versions after reviewing code changes or fixing issues.
-
-#### `logs` — Read Application Logs
-
-Reads and filters application logs with support for all Cipi log types:
-
-| Parameter | Values                                                                          | Description                          |
-| --------- | ------------------------------------------------------------------------------- | ------------------------------------ |
-| `type`    | `laravel`, `nginx`, `php`, `worker`, `deploy`                                   | Log file to read                     |
-| `level`   | `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` | Minimum severity (Laravel logs only) |
-| `search`  | any string                                                                      | Case-insensitive keyword filter      |
-
-Multi-line entries (stack traces) are kept intact during filtering.
-
-#### `artisan` — Run Artisan Commands
-
-Executes Artisan commands remotely. Long-running and potentially dangerous commands are blocked for safety (see [Security](#security)).
-
-#### `db_query` — Execute SQL Queries
-
-Runs SQL queries against the application database:
-
-- **Read:** `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`
-- **Write:** `INSERT`, `UPDATE`, `DELETE`
-- **Blocked:** `DROP`, `TRUNCATE`, `GRANT`, `REVOKE`, file I/O operations
-
-Results are formatted as a readable ASCII table, capped at 100 rows.
-
-### Example Workflow
-
-With the MCP server enabled, you can ask your AI assistant things like:
-
-- _"Check the health of the production app"_
-- _"Show me the last 50 error logs"_
-- _"Run `php artisan migrate:status`"_
-- _"Query the users table to find accounts created today"_
-- _"Deploy the latest changes"_
+Namespace rules need the app name: `CIPI_APP_USER`, or `--app=<name>` outside the server.
 
 ---
 
 ## Database Anonymizer
 
-Creates anonymized database dumps by replacing sensitive data (names, emails, passwords, addresses) with realistic fake values generated by [Faker](https://fakerphp.github.io/). The resulting SQL file is safe to share with developers, use in CI pipelines, or load into local environments.
+Creates an anonymized dump — **MySQL/MariaDB** (`mysqldump`, extended inserts) and **PostgreSQL** (`pg_dump`, `COPY` blocks and `INSERT` statements) — by streaming the dump and replacing sensitive columns with realistic fake values from [Faker](https://fakerphp.github.io/). The real data never lingers: the original dump is deleted as soon as it has been processed, output files are `0600`, and database passwords travel in the environment, never on the command line.
 
 ### Setup
 
-**1. Enable the anonymizer:**
-
 ```bash
 php artisan cipi:service anonymize --enable
-```
-
-**2. Generate a token:**
-
-```bash
 php artisan cipi:generate-token anonymize
+php artisan cipi:init-anonymize --scan      # propose a config from the live schema
+php artisan cipi:anonymize-audit            # check it against the database
 ```
 
-**3. Initialize the configuration file:**
+`--scan` reads the schema and proposes a transformation for every column that looks like personal data (e-mails, names, phones, addresses, IPs, tokens, passwords, tax ids, card data, free-text notes…) and empties the usual operational tables (`sessions`, `jobs`, `failed_jobs`, `password_reset_tokens`, `personal_access_tokens`, Telescope, Pulse…). Review the file before the first dump. The config lives at `/home/<app>/.db/anonymization.json`, outside the repository, with permissions `0640`.
 
-```bash
-php artisan cipi:init-anonymize
-```
+`cipi:anonymize-audit` (also `cipi:anonymize --check` and the MCP `anonymizer` tool) reports tables and columns that no longer exist, unknown transformations, password columns not using `password`, and the personal-data columns left uncovered, with a suggestion for each.
 
-This creates `/home/{app_user}/.db/anonymization.json` from the built-in template. The file is stored **outside the project repository** to keep sensitive field mappings out of version control (permissions `0640`). Use `--force` to overwrite an existing file.
-
-**4. Edit the configuration** to match your actual tables and sensitive columns:
+### Configuration
 
 ```json
 {
   "transformations": {
     "users": {
       "name": "fakeName",
-      "email": "fakeEmail",
+      "email": { "type": "fakeEmail", "unique": true, "consistent": true },
       "password": "password",
-      "phone": "fakePhoneNumber"
+      "remember_token": "null",
+      "phone": "mask:3,2"
     },
     "orders": {
-      "customer_notes": "fakeParagraph"
+      "customer_email": { "type": "fakeEmail", "consistent": true },
+      "card_last_four": "numerify:####",
+      "internal_notes": "fakeParagraph"
     }
   },
+  "truncate": ["sessions", "jobs", "failed_jobs", "password_reset_tokens", "personal_access_tokens"],
   "options": {
     "hash_algorithm": "auto",
-    "faker_locale": "en_US"
+    "password": "password",
+    "faker_locale": "en_US",
+    "consistent": true,
+    "seed": null,
+    "gzip": false
   }
 }
 ```
 
-### Supported Transformations
+A transformation is a name (`"fakeEmail"`), a name with an argument (`"fixed:ACME"`, `"numerify:###"`, `"mask:1,2"`, `"hash:32"`), or an object with `type` plus `unique` / `consistent` flags. `NULL` values stay `NULL` (except with `fixed`). A JSON Schema is published with `vendor:publish --tag=cipi-schemas`.
 
-| Transformation    | Output                                                          |
-| ----------------- | --------------------------------------------------------------- |
-| `fakeName`        | Full name (e.g., "John Smith")                                  |
-| `fakeFirstName`   | First name                                                      |
-| `fakeLastName`    | Last name                                                       |
-| `fakeEmail`       | Email address                                                   |
-| `fakeCompany`     | Company name                                                    |
-| `fakeAddress`     | Full street address                                             |
-| `fakeCity`        | City name                                                       |
-| `fakePostcode`    | Postal code                                                     |
-| `fakePhoneNumber` | Phone number                                                    |
-| `fakeDate`        | Random date                                                     |
-| `fakeUrl`         | URL                                                             |
-| `fakeParagraph`   | Lorem ipsum paragraph                                           |
-| `password`        | Re-hashes using the project's algorithm (bcrypt / argon / auto) |
+- **`consistent`** — the same original value becomes the same fake value in every table and every run with the same `seed`, so denormalized e-mails and names still join.
+- **`unique`** — no two rows of a column receive the same value; on by default for `fakeEmail`, `fakeSafeEmail`, `fakeUserName`, `fakeUuid`, `fakeToken`, `fakeIban` (columns that usually carry a unique index).
+- **`password`** — every row gets the hash of `options.password` (default `password`), computed once, so developers can log in to the anonymized copy. `hash_algorithm` `auto` uses the app's Hash driver.
+- **`truncate`** — structure is kept, rows are dropped from the dump.
 
-### API Endpoints
+### Transformations
 
-#### Queue an Anonymization Job
+| Transformation | Output | Transformation | Output |
+| --- | --- | --- | --- |
+| `fakeName` / `fakeFirstName` / `fakeLastName` | Person names | `fakeIpv4` / `fakeIpv6` / `fakeMacAddress` | Network identifiers |
+| `fakeUserName` | User name (unique) | `fakeUserAgent` | Browser user agent |
+| `fakeEmail` / `fakeSafeEmail` | E-mail (unique) | `fakeUuid` | UUID v4 (unique) |
+| `fakeCompany` / `fakeJobTitle` | Company, job title | `fakeLatitude` / `fakeLongitude` | Coordinates |
+| `fakeAddress` / `fakeStreetAddress` | Postal / street address | `fakeNumber[:digits]` | Random integer |
+| `fakeCity` / `fakeState` / `fakePostcode` | City, region, postcode | `fakeBoolean` | Random true/false |
+| `fakeCountry` / `fakeCountryCode` | Country name / ISO code | `fakeToken[:length]` | Random hex token |
+| `fakePhoneNumber` | Phone number | `fakeIdentifier` | Alphanumeric id (tax id, passport…) |
+| `fakeDate` / `fakeDateTime` | `Y-m-d` / `Y-m-d H:i:s` | `numerify:###` / `lexify:???` / `bothify:?#` | Patterns |
+| `fakeUrl` / `fakeDomain` | URL, domain | `password` | Hash of `options.password` |
+| `fakeParagraph` / `fakeSentence` / `fakeText[:len]` / `fakeWord` | Text | `null` / `empty` / `fixed:value` / `redact` | Constants |
+| `fakeIban[:CC]` / `fakeCreditCardNumber` | Banking (test ranges) | `hash[:len]` / `mask:first,last` / `keep` | Derived from the original |
+
+`php artisan cipi:anonymize --transformations` prints the list.
+
+### API
 
 ```bash
+# queue a dump — the signed download link is e-mailed (a queue worker and MAIL_* are required)
 curl -X POST https://yourdomain.com/cipi/db \
-  -H "Authorization: Bearer $CIPI_ANONYMIZER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "developer@example.com"}'
-```
+  -H "Authorization: Bearer $CIPI_ANONYMIZER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"email": "developer@example.com", "gzip": true}'
 
-The anonymization runs **asynchronously**. When complete, an email is sent to the provided address with a **signed download link** valid for 15 minutes.
-
-#### Lookup a User by Email
-
-Useful when debugging an anonymized dump — find the original user ID for a given email:
-
-```bash
+# find the original user id for an e-mail (debugging an anonymized dataset)
 curl -X POST https://yourdomain.com/cipi/db/user \
-  -H "Authorization: Bearer $CIPI_ANONYMIZER_TOKEN" \
-  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $CIPI_ANONYMIZER_TOKEN" -H "Content-Type: application/json" \
   -d '{"email": "user@example.com"}'
 ```
 
-```json
-{
-  "user_id": 123,
-  "email": "user@example.com",
-  "found_at": "2026-03-07T10:00:00.000000Z"
-}
-```
+The e-mail contains a signed link (`GET /cipi/db/{token}`, valid `CIPI_ANONYMIZER_TTL` minutes) and a summary: size, rows transformed per table, tables emptied, warnings.
 
-#### Download the Dump
-
-The email contains a signed URL in this format:
-
-```
-GET /cipi/db/{token}
-```
-
-The link expires after 15 minutes and the file is cleaned up after download.
-
-### CLI Anonymization
-
-For scripting or CI pipelines, you can run the anonymizer directly:
+### CLI
 
 ```bash
-php artisan cipi:anonymize /path/to/anonymization.json /path/to/output.sql
+php artisan cipi:anonymize                                   # server config → storage/cipi/anonymized_<timestamp>.sql
+php artisan cipi:anonymize --gzip                            # .sql.gz
+php artisan cipi:anonymize /path/config.json /path/out.sql   # explicit paths (1.x signature)
+php artisan cipi:anonymize --check                           # validate + audit, no dump
 ```
+
+---
+
+## Panel Integration (cipi/sdk)
+
+The agent only knows the app it runs in. With the [PHP SDK](https://cipi.sh/docs/php-sdk) installed and a Sanctum token created on the server with the abilities you want to allow, the MCP server gains tools that no in-app process could offer:
+
+```bash
+composer require cipi/sdk
+# on the server:  cipi api token create   → abilities: apps-view, deploy-manage, dbs-manage, status-view
+```
+
+```env
+CIPI_BASE_URL=https://api.myserver.com
+CIPI_TOKEN=...
+```
+
+| Tool                 | Panel operation                                           | Ability         |
+| -------------------- | --------------------------------------------------------- | --------------- |
+| `panel_status`       | App as the panel sees it + server snapshot                | `apps-view`, `status-view` |
+| `panel_deploy_audit` | Hash-chained deploy audit ledger (`--audit`)               | `deploy-manage` |
+| `panel_rollback`     | `cipi deploy --rollback` (code only, migrations stay)      | `deploy-manage` |
+| `panel_db_backup`    | `cipi db backup` server-side snapshot                      | `dbs-manage`    |
+| `panel_job`          | Status, result and output of an asynchronous panel job     | any             |
+
+The tools appear automatically when the SDK is installed and `CIPI_BASE_URL`/`CIPI_TOKEN` are set (`CIPI_PANEL=false` hides them). Both packages read `config/cipi.php`; publish the agent's copy with `--tag=cipi-agent-config`.
 
 ---
 
 ## Artisan Commands
 
-Cipi Agent provides a complete set of Artisan commands for managing all features from the terminal.
-
-### Status & Info
-
-| Command                       | Description                                                  |
-| ----------------------------- | ------------------------------------------------------------ |
-| `php artisan cipi:status`     | Show agent configuration and live database connectivity      |
-| `php artisan cipi:deploy-key` | Print the SSH deploy key for the current app                 |
-| `php artisan cipi:mcp`        | Print the MCP endpoint URL and client configuration snippets |
-
-### Token Management
-
-| Command                                     | Description                               |
-| ------------------------------------------- | ----------------------------------------- |
-| `php artisan cipi:generate-token mcp`       | Generate a secure `CIPI_MCP_TOKEN`        |
-| `php artisan cipi:generate-token health`    | Generate a secure `CIPI_HEALTH_TOKEN`     |
-| `php artisan cipi:generate-token anonymize` | Generate a secure `CIPI_ANONYMIZER_TOKEN` |
-
-### Service Toggle
-
-| Command                                        | Description                       |
-| ---------------------------------------------- | --------------------------------- |
-| `php artisan cipi:service mcp --enable`        | Enable the MCP server             |
-| `php artisan cipi:service mcp --disable`       | Disable the MCP server            |
-| `php artisan cipi:service health --enable`     | Enable the health check endpoint  |
-| `php artisan cipi:service health --disable`    | Disable the health check endpoint |
-| `php artisan cipi:service anonymize --enable`  | Enable the database anonymizer    |
-| `php artisan cipi:service anonymize --disable` | Disable the database anonymizer   |
-
-### Database Anonymizer
-
-| Command                                        | Description                                            |
-| ---------------------------------------------- | ------------------------------------------------------ |
-| `php artisan cipi:init-anonymize`              | Create `anonymization.json` from the built-in template |
-| `php artisan cipi:anonymize <config> <output>` | Run an anonymized dump directly from the CLI           |
+| Command | Description |
+| ------- | ----------- |
+| `cipi:status` | Agent configuration, release and commit, feature state, `cipi.yml` validity, database connectivity |
+| `cipi:deploy-key` | Print the SSH deploy key of the app |
+| `cipi:mcp [--json]` | MCP endpoint, tools, resources and client configuration snippets |
+| `cipi:generate-token {mcp\|health\|anonymize}` | Generate a token and write it to `.env` |
+| `cipi:service {mcp\|health\|anonymize} --enable\|--disable` | Toggle a feature in `.env` |
+| `cipi:yml validate [--file=] [--app=] [--json] [--strict]` | Validate `cipi.yml` with the server's rules |
+| `cipi:yml show [--json]` | Normalized document with defaults applied |
+| `cipi:yml generate [--write] [--force]` | Infer a `cipi.yml` from the application |
+| `cipi:yml example [--write]` | Commented template in the app's namespace |
+| `cipi:yml schema [--write]` | JSON Schema for editors |
+| `cipi:init-anonymize [--scan] [--path=] [--stdout] [--force]` | Create `anonymization.json` from the example or from the live schema |
+| `cipi:anonymize-audit [config] [--json]` | Check the config against the database |
+| `cipi:anonymize [config] [output] [--gzip] [--check] [--transformations]` | Create an anonymized dump |
 
 ---
 
 ## Security
 
-Cipi Agent is designed with a **defense-in-depth** approach. Every feature has its own authentication layer and can be independently enabled or disabled.
-
-### Token Isolation
-
-Each feature uses a **dedicated Bearer token**. Compromising one token does not grant access to other features:
-
-| Feature        | Token variable          | Middleware              |
-| -------------- | ----------------------- | ----------------------- |
-| Webhook deploy | `CIPI_WEBHOOK_TOKEN`    | `VerifyWebhookToken`    |
-| Health check   | `CIPI_HEALTH_TOKEN`     | `VerifyHealthToken`     |
-| MCP server     | `CIPI_MCP_TOKEN`        | `VerifyMcpToken`        |
-| DB anonymizer  | `CIPI_ANONYMIZER_TOKEN` | `VerifyAnonymizerToken` |
-
-### Feature Gating
-
-When a feature is disabled, its middleware returns **HTTP 404** — the endpoint appears to not exist at all, revealing nothing to potential attackers.
-
-### Webhook Signature Verification
-
-The webhook endpoint uses provider-specific verification:
-
-- **GitHub** — HMAC-SHA256 signature validation
-- **GitLab** — secret token header comparison
-
-### MCP Safety Measures
-
-- **Blocked Artisan commands:** `serve`, `tinker`, `queue:work`, `queue:listen`, `schedule:work`, `horizon`, `octane:start`, `reverb:start`
-- **Blocked SQL operations:** `DROP`, `TRUNCATE`, `GRANT`, `REVOKE`, and file I/O
-- **Query result limits:** maximum 100 rows per query
-
-### Anonymizer Safety
-
-- **Signed download URLs** with 15-minute expiration
-- **Automatic file cleanup** after download
-- **Configuration stored outside the repository** (`/home/{app_user}/.db/`) with restricted permissions
+- **Token isolation** — every feature has its own Bearer token (`CIPI_WEBHOOK_TOKEN`, `CIPI_HEALTH_TOKEN`, `CIPI_MCP_TOKEN`, `CIPI_ANONYMIZER_TOKEN`); compromising one grants nothing else
+- **Feature gating** — disabled features return 404
+- **Webhook verification** — provider HMAC signatures or secret headers, compared in constant time
+- **Deploy claims** — what the agent writes about a deploy is recorded by Cipi as a *claim*, never as a fact
+- **MCP** — blocked commands and statements, redaction, Origin validation, row caps, `isError` for failures, read-only database mode available
+- **Anonymizer** — config outside the repository, passwords via environment, original dump deleted right after processing, `0600` outputs, signed time-limited download links, downloads confined to `storage/cipi`
 
 ---
 
-## Documentation
+## Upgrading from 1.x
 
-This package is part of the **Cipi** ecosystem. For full documentation including server setup guides, panel configuration, and deployment workflows, visit:
+2.0 is backward compatible on the wire — existing MCP clients, webhooks, health monitors and the anonymizer API keep working. Changes worth knowing:
 
-**[cipi.sh](https://cipi.sh)**
+- **`password` transformation** now sets every password to the hash of `options.password` (default `password`) instead of re-hashing the stored hash. The old behaviour produced unusable passwords; set `options.password` if you relied on a specific value.
+- **Health** no longer reports `degraded` when deploy metadata is unavailable or the last deploy failed; the information is in `checks.deploy`.
+- **Deploy trigger file** gained `source`, `actor`, `ip`, `ref`, `request_id` (read by Cipi's audit ledger); the 1.x keys are still written.
+- **`db_query`** additionally blocks `ALTER`, `RENAME`, `CREATE …`, administrative statements and multi-statement queries; `CIPI_MCP_DB_WRITE=false` makes it read-only.
+- **`artisan` tool** additionally blocks `db:wipe`, `migrate:fresh`, `migrate:reset`, `pail`, `horizon:*`.
+- **Publishing** — `vendor:publish --tag=cipi-agent-config` publishes only this package's config (the `cipi-config` tag is shared with `cipi/sdk` and still works).
+- **Anonymizer config** — `truncate` and the object form of transformations are new; existing files keep working. The PostgreSQL dump format changed from `custom` to `plain` so that it can actually be transformed.
+
+---
+
+## Development
+
+```bash
+composer install
+composer test
+```
+
+The suite runs on Orchestra Testbench with an in-memory SQLite database and a fake app home; the `cipi.yml` validator is additionally checked against the server's Python validator on a corpus of valid and invalid files.
 
 ---
 

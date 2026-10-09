@@ -4,6 +4,52 @@ All notable changes to `cipi/agent` are documented here.
 
 ---
 
+## [2.0.0] — 2026-10-09
+
+A catch-up release aligned with Cipi 5.5, the Cipi API 1.32 / PHP SDK 1.0 and the current Model Context Protocol revisions. Backward compatible on the wire; see **Upgrading from 1.x** in the README for the behaviour changes.
+
+### Added
+
+- **MCP: protocol revisions 2025-03-26, 2025-06-18, 2025-11-25 and 2026-07-28** next to 2024-11-05. The server is dual-era: `initialize` clients are served according to the version they negotiate; 2026-07-28 clients get `server/discover`, per-request `_meta` handling, `resultType`, `_meta` server info, `UnsupportedProtocolVersion` (-32022) / `HeaderMismatch` (-32020) errors with the right HTTP status, and `Mcp-Method` / `Mcp-Name` header validation. `GET`/`DELETE` answer 405, notifications 202, `Origin` is validated (`CIPI_MCP_ALLOWED_ORIGINS`).
+- **MCP: tool metadata** — every tool declares `title`, behaviour `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), JSON Schema input (and output where useful), returns `structuredContent` next to text, and reports failures with `isError` instead of plain text.
+- **MCP: new tools** — `deploy_status` (live release and commit, releases, running/queued state, last deploy outcome, deploy log tail), `db_schema` (tables with row counts; columns, indexes, foreign keys and personal-data hints for one table), `env_check` (which `.env` keys are set/empty vs `.env.example` and `cipi.yml` `env.required` — names only), `cipi_yml` (validate / show / generate / example), `anonymizer` (audit / config / scan / transformations / start).
+- **MCP: resources** — `cipi://cipi.yml`, `cipi://cipi.yml/schema`, `cipi://cipi.yml/example`, `cipi://anonymization.json`, `cipi://anonymization.json/schema`.
+- **MCP: panel tools via `cipi/sdk`** (optional) — `panel_status`, `panel_deploy_audit`, `panel_rollback`, `panel_db_backup`, `panel_job`, exposed when the SDK is installed and `CIPI_BASE_URL` / `CIPI_TOKEN` are set.
+- **MCP: redaction** — logs and command output are prefixed with a production-content warning and common secrets (env assignments, bearer tokens, DSNs, `APP_KEY`, provider keys, Cipi tokens) are masked (`CIPI_MCP_REDACT`), mirroring the Cipi API's guard.
+- **MCP: `logs`** reads `horizon`, `reverb` and `all` in addition to `laravel`, `nginx`, `php`, `worker`, `deploy`; output is bounded.
+- **MCP: `db_query`** — `limit` and `format` (table/json) arguments, automatic cap on reads without `LIMIT`, `WITH` queries, read-only mode (`CIPI_MCP_DB_WRITE=false`), default cap `CIPI_MCP_MAX_ROWS`.
+- **MCP: `deploy`** — accepts `actor`, `ref`, `request_id`, refuses while a deploy is running, reports an already queued trigger.
+- **`cipi.yml` tooling** — `php artisan cipi:yml validate|show|generate|example|schema`: a line-for-line PHP port of the server's YAML-subset parser and schema validator (identical messages, checked against the server's Python on a corpus), an inferring generator (Horizon/queues, Reverb, Scout, scheduler, `/up` route, PHP version, namespaced databases, `env.required` from `.env.example`), the commented template, the `env.required` check against the local `.env`, `--json` for CI and a JSON Schema (`resources/schema/cipi.schema.json`, publishable with `--tag=cipi-schemas`).
+- **Anonymizer: PostgreSQL support that works** — `pg_dump --format=plain` with streaming transformation of `COPY … FROM stdin` blocks and `INSERT` statements (standard-conforming and `E''` strings), in addition to MySQL/MariaDB.
+- **Anonymizer: new transformations** — `fakeUserName`, `fakeSafeEmail`, `fakeJobTitle`, `fakeStreetAddress`, `fakeState`, `fakeCountry`, `fakeCountryCode`, `fakeDateTime`, `fakeDomain`, `fakeSentence`, `fakeText`, `fakeWord`, `fakeIban`, `fakeCreditCardNumber`, `fakeIpv4`, `fakeIpv6`, `fakeMacAddress`, `fakeUserAgent`, `fakeUuid`, `fakeLatitude`, `fakeLongitude`, `fakeNumber`, `fakeBoolean`, `fakeToken`, `fakeIdentifier`, `numerify`, `lexify`, `bothify`, `null`, `empty`, `fixed`, `hash`, `mask`, `redact`, `keep`; argument syntax (`fixed:ACME`, `mask:1,2`) and object form (`{"type": …, "unique": …, "consistent": …}`).
+- **Anonymizer: `consistent` mode** (same original → same fake across tables and runs, seeded) and **`unique`** guarantee (default for e-mail, user name, UUID, token, IBAN); **`truncate`** list to empty operational tables; `gzip` output; `options.connection`, `options.dump_args`, `options.seed`.
+- **Anonymizer: `cipi:init-anonymize --scan`** proposes a complete config from the live schema with personal-data heuristics; **`cipi:anonymize-audit`** (and `cipi:anonymize --check`) validates the config against the database and lists uncovered personal-data columns with suggestions; `cipi:anonymize --transformations` lists the catalogue; JSON Schema for `anonymization.json`.
+- **Anonymizer: API** — `gzip` flag on `POST /cipi/db`, `CIPI_ANONYMIZER_TTL`, `CIPI_ANONYMIZER_CONFIG`, summary (size, rows, tables, warnings) in the notification e-mail.
+- **Webhook** — Bitbucket (`X-Hub-Signature: sha256=`), Gitea and Azure DevOps payloads; GitHub `ping` → `pong`; non-push events acknowledged with `202 ignored`; the trigger file now carries `source`, `actor`, `ip`, `ref` (`branch@commit`) and `request_id` in the format `cipi-app-deploy` reads for the deploy audit ledger.
+- **Health** — `checks.app.maintenance`, `checks.queue.failed_jobs`, `checks.storage` (writable paths, disk usage), `checks.deploy.release` / `commit` from Deployer's `REVISION`, `in_progress`, `pending`, `last_deploy` from `~/logs/deploy.log`.
+- **`cipi:status`** shows release and commit, MCP/anonymizer/panel state and whether the `cipi.yml` is valid; **`cipi:mcp`** lists tools and resources from the registry and prints Cursor, VS Code, Claude Code and Claude Desktop snippets (`--json` for the raw config).
+- **`CIPI_HOME`** to override the app home; **test suite** (Orchestra Testbench, 44 tests) and `composer test`.
+
+### Changed
+
+- **`password` transformation** sets every row to the hash of `options.password` (default `password`), computed once, instead of re-hashing the stored hash — the anonymized copy is now usable for login and large tables no longer pay one bcrypt per row.
+- **Health** no longer degrades when deploy metadata is unavailable or the last automatic deploy failed (the previous release is still live); the information is reported under `checks.deploy`.
+- **`db_query`** additionally blocks `ALTER`, `RENAME`, `CREATE …`, `SET GLOBAL`, `KILL`/`SHUTDOWN`, PostgreSQL file functions and multi-statement input; **`artisan`** additionally blocks `db:wipe`, `migrate:fresh`, `migrate:reset`, `pail`, `horizon:work`, `horizon:supervisor` (extend with `cipi.mcp_blocked_artisan`) and always runs with `--no-interaction`.
+- **MySQL dumps** are taken with `--quick --skip-lock-tables` and the password is passed through `MYSQL_PWD` instead of `--password=` on the command line; PostgreSQL uses `PGPASSWORD`. Binaries are resolved on `PATH` (`mysqldump`, `mariadb-dump`, `pg_dump`) or via `CIPI_MYSQLDUMP` / `CIPI_PG_DUMP`.
+- **Download route** is protected by Laravel's `signed` middleware and only serves files under `storage/cipi`.
+- **Config publishing** — the config is published under both `cipi-config` (compatibility) and `cipi-agent-config` (because `cipi/sdk` uses the same `cipi-config` tag).
+- `McpController` is now a thin transport layer; the protocol lives in `Cipi\Agent\Mcp\Server` with a `Registry` of `Tool` and `Resource` classes.
+
+### Fixed
+
+- **PostgreSQL anonymization never worked**: the dump was taken in `custom` (binary) format, which the line-based transformer could not read. Plain format with `COPY` parsing replaces it.
+- **MySQL value parsing** broke on escaped quotes (`\'`), parentheses or commas inside strings, `_binary`/hex literals and `--complete-insert` column lists; `PRIMARY KEY` lines were mistaken for columns. A real tokenizer replaces the regex.
+- **Webhook middleware** had its whole verification block duplicated; Bitbucket signatures (`sha256=` in `X-Hub-Signature`) were rejected.
+- **`deploy` MCP tool** wrote a trigger payload (`trigger`, `branch`) the server ignored; it now writes the fields `cipi-app-deploy` reads, atomically (temp file + rename).
+- **`cipi:mcp`** advertised the webhook token as a fallback that the MCP middleware would reject, and listed five tools while six existed.
+
+---
+
 ## [1.5.4] — 2026-10-07
 
 ### Fixed

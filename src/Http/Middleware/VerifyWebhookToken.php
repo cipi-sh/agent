@@ -6,99 +6,55 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Verifies a Git provider's push webhook with CIPI_WEBHOOK_TOKEN:
+ *   GitHub     X-Hub-Signature-256: sha256=HMAC(body)   (X-Hub-Signature: sha1= legacy)
+ *   Bitbucket  X-Hub-Signature:     sha256=HMAC(body)
+ *   GitLab     X-Gitlab-Token:      token               (Azure DevOps registers the hook the same way)
+ *   Gitea      X-Gitea-Signature:   HMAC(body) hex
+ * plus `?token=` and a Bearer token for custom setups.
+ */
 class VerifyWebhookToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $token = config('cipi.webhook_token');
+        $token = (string) config('cipi.webhook_token', '');
 
-        if (empty($token)) {
+        if ($token === '') {
             return response()->json(['error' => 'Webhook token not configured'], 500);
         }
 
-        // 1. GitHub: X-Hub-Signature-256 (HMAC SHA256)
-        if ($signature = $request->header('X-Hub-Signature-256')) {
-            $expected = 'sha256=' . hash_hmac('sha256', $request->getContent(), $token);
-            if (hash_equals($expected, $signature)) {
+        $body = $request->getContent();
+
+        if (($sig = $request->header('X-Hub-Signature-256')) !== null) {
+            if (hash_equals('sha256='.hash_hmac('sha256', $body, $token), $sig)) {
                 return $next($request);
             }
         }
 
-        // 2. GitHub legacy: X-Hub-Signature (HMAC SHA1)
-        if ($signature = $request->header('X-Hub-Signature')) {
-            $expected = 'sha1=' . hash_hmac('sha1', $request->getContent(), $token);
-            if (hash_equals($expected, $signature)) {
+        if (($sig = $request->header('X-Hub-Signature')) !== null) {
+            $expected = str_starts_with($sig, 'sha256=')
+                ? 'sha256='.hash_hmac('sha256', $body, $token)
+                : 'sha1='.hash_hmac('sha1', $body, $token);
+            if (hash_equals($expected, $sig)) {
                 return $next($request);
             }
         }
 
-        // 3. GitLab: X-Gitlab-Token (plain token)
-        if ($gitlabToken = $request->header('X-Gitlab-Token')) {
-            if (hash_equals($token, $gitlabToken)) {
-                return $next($request);
-            }
-        }
-
-        // 4. Bitbucket: X-Hub-Signature (same as GitHub legacy)
-        // Already covered by case 2
-
-        // 5. Gitea: X-Gitea-Signature (HMAC SHA256)
-        if ($giteaSignature = $request->header('X-Gitea-Signature')) {
-            $expected = hash_hmac('sha256', $request->getContent(), $token);
-            if (hash_equals($expected, $giteaSignature)) {
-                return $next($request);
-            }
-        }
-
-        // 6. Query string token (for simple/custom setups and health check)
-        if ($request->query('token') && hash_equals($token, $request->query('token'))) {
+        if (($plain = $request->header('X-Gitlab-Token')) !== null && hash_equals($token, $plain)) {
             return $next($request);
         }
 
-        // 1. GitHub: X-Hub-Signature-256 (HMAC SHA256)
-        if ($signature = $request->header('X-Hub-Signature-256')) {
-            $expected = 'sha256=' . hash_hmac('sha256', $request->getContent(), $token);
-            if (hash_equals($expected, $signature)) {
-                return $next($request);
-            }
-        }
-
-        // 2. GitHub legacy: X-Hub-Signature (HMAC SHA1)
-        if ($signature = $request->header('X-Hub-Signature')) {
-            $expected = 'sha1=' . hash_hmac('sha1', $request->getContent(), $token);
-            if (hash_equals($expected, $signature)) {
-                return $next($request);
-            }
-        }
-
-        // 3. GitLab: X-Gitlab-Token (plain token)
-        if ($gitlabToken = $request->header('X-Gitlab-Token')) {
-            if (hash_equals($token, $gitlabToken)) {
-                return $next($request);
-            }
-        }
-
-        // 4. Bitbucket: X-Hub-Signature (same as GitHub legacy)
-        // Already covered by case 2
-
-        // 5. Gitea: X-Gitea-Signature (HMAC SHA256)
-        if ($giteaSignature = $request->header('X-Gitea-Signature')) {
-            $expected = hash_hmac('sha256', $request->getContent(), $token);
-            if (hash_equals($expected, $giteaSignature)) {
-                return $next($request);
-            }
-        }
-
-        // 6. Query string token (for simple/custom setups)
-        if ($request->query('token') && hash_equals($token, $request->query('token'))) {
+        if (($sig = $request->header('X-Gitea-Signature')) !== null && hash_equals(hash_hmac('sha256', $body, $token), $sig)) {
             return $next($request);
         }
 
-        // 7. Bearer token (for health check via curl)
-        if ($bearer = $request->bearerToken()) {
-            if (hash_equals($token, $bearer)) {
-                return $next($request);
-            }
+        if (($query = $request->query('token')) && is_string($query) && hash_equals($token, $query)) {
+            return $next($request);
+        }
+
+        if (($bearer = $request->bearerToken()) && hash_equals($token, $bearer)) {
+            return $next($request);
         }
 
         return response()->json(['error' => 'Invalid webhook signature or token'], 403);

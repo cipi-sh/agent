@@ -1,10 +1,12 @@
 {
   "name": "cipi/agent",
-  "description": "Cipi Agent for Laravel — webhook deploy, health check, and server integration",
+  "description": "Cipi Agent for Laravel — webhook deploy, health check, MCP server, cipi.yml tooling and database anonymizer",
   "keywords": [
     "cipi",
     "laravel",
     "deploy",
+    "mcp",
+    "anonymizer",
     "cli",
     "php",
     "lemp",
@@ -12,6 +14,12 @@
     "linux"
   ],
   "license": "MIT",
+  "homepage": "https://cipi.sh/docs/agent",
+  "support": {
+    "docs": "https://cipi.sh/docs/agent",
+    "issues": "https://github.com/cipi-sh/agent/issues",
+    "source": "https://github.com/cipi-sh/agent"
+  },
   "authors": [
     {
       "name": "Andrea Pollastri",
@@ -20,15 +28,32 @@
   ],
   "require": {
     "php": "^8.3",
+    "ext-json": "*",
     "illuminate/support": "^12.0|^13.0",
     "illuminate/routing": "^12.0|^13.0",
     "illuminate/console": "^12.0|^13.0",
+    "illuminate/database": "^12.0|^13.0",
     "fakerphp/faker": "^1.23"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^10.0|^11.0"
+  },
+  "suggest": {
+    "cipi/sdk": "Lets the MCP server and the Artisan commands talk to the Cipi panel API (deploy audit, rollback, backups, server status) — ^1.0",
+    "ext-zlib": "Required for gzip-compressed anonymized dumps (--gzip)."
   },
   "autoload": {
     "psr-4": {
       "Cipi\\Agent\\": "src/"
     }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Cipi\\Agent\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/phpunit"
   },
   "extra": {
     "laravel": {
@@ -38,5 +63,8 @@
     }
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  }
 }

@@ -3,7 +3,7 @@
 namespace Cipi\Agent\Console\Concerns;
 
 /**
- * After a command writes to .env: make the change live.
+ * Writing to .env and making the change live.
  *
  * With a cached configuration (Cipi deploys run `artisan optimize`), Laravel
  * never reads .env again — restarting PHP-FPM or the web server changes
@@ -12,6 +12,27 @@ namespace Cipi\Agent\Console\Concerns;
  */
 trait AppliesEnvChanges
 {
+    protected function writeEnv(string $key, string $value): bool
+    {
+        $envPath = app()->environmentFilePath();
+
+        if (! file_exists($envPath) || ! is_writable($envPath)) {
+            return false;
+        }
+
+        $contents = (string) file_get_contents($envPath);
+        $entry = "{$key}={$value}";
+        $pattern = '/^'.preg_quote($key, '/').'=.*$/m';
+
+        if (preg_match($pattern, $contents)) {
+            $contents = (string) preg_replace($pattern, $entry, $contents, 1);
+        } else {
+            $contents = rtrim($contents).PHP_EOL.$entry.PHP_EOL;
+        }
+
+        return file_put_contents($envPath, $contents) !== false;
+    }
+
     protected function applyEnvChanges(): void
     {
         if ($this->laravel->configurationIsCached()) {

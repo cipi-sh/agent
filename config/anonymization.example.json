@@ -1,41 +1,64 @@
 {
+  "$schema": "https://cipi.sh/schema/anonymization.schema.json",
   "transformations": {
     "users": {
       "name": "fakeName",
-      "email": "fakeEmail",
+      "first_name": "fakeFirstName",
+      "last_name": "fakeLastName",
+      "email": { "type": "fakeEmail", "unique": true, "consistent": true },
       "password": "password",
+      "remember_token": "null",
+      "two_factor_secret": "null",
+      "two_factor_recovery_codes": "null",
       "phone": "fakePhoneNumber",
-      "address": "fakeAddress",
+      "address": "fakeStreetAddress",
       "city": "fakeCity",
       "postal_code": "fakePostcode",
       "birth_date": "fakeDate",
-      "first_name": "fakeFirstName",
-      "last_name": "fakeLastName"
+      "last_login_ip": "fakeIpv4"
     },
     "customers": {
       "company_name": "fakeCompany",
       "contact_name": "fakeName",
-      "contact_email": "fakeEmail",
+      "contact_email": { "type": "fakeEmail", "consistent": true },
+      "vat_number": "fakeIdentifier",
+      "iban": "fakeIban",
       "billing_address": "fakeAddress",
       "shipping_address": "fakeAddress"
     },
     "orders": {
       "customer_notes": "fakeParagraph",
-      "internal_notes": "fakeParagraph"
+      "internal_notes": "fakeParagraph",
+      "card_last_four": "numerify:####"
     },
     "user_profiles": {
       "bio": "fakeParagraph",
       "website": "fakeUrl",
-      "social_links": "fakeUrl"
+      "tax_code": "mask:2,2"
     },
     "support_tickets": {
       "user_message": "fakeParagraph",
       "agent_response": "fakeParagraph"
     }
   },
+  "truncate": [
+    "sessions",
+    "cache",
+    "cache_locks",
+    "jobs",
+    "failed_jobs",
+    "job_batches",
+    "password_reset_tokens",
+    "personal_access_tokens",
+    "telescope_entries",
+    "telescope_entries_tags",
+    "telescope_monitoring"
+  ],
   "options": {
     "hash_algorithm": "auto",
-    "preserve_ids": true,
-    "faker_locale": "en_US"
+    "password": "password",
+    "faker_locale": "en_US",
+    "consistent": true,
+    "gzip": false
   }
 }

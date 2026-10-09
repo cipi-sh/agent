@@ -2,12 +2,14 @@
 
 namespace Cipi\Agent\Http\Controllers;
 
+use Cipi\Agent\Anonymizer\Config;
+use Cipi\Agent\Anonymizer\ConfigException;
 use Cipi\Agent\Jobs\AnonymizeDatabaseJob;
+use Cipi\Agent\Support\AppHome;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,170 +17,107 @@ class DatabaseController extends Controller
 {
     public function startAnonymization(Request $request): JsonResponse
     {
-
-
-        // Validate request
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
+            'gzip' => 'sometimes|boolean',
         ]);
-
         if ($validator->fails()) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'details' => $validator->errors()
-            ], 422);
+            return response()->json(['error' => 'Validation failed', 'details' => $validator->errors()], 422);
         }
 
-        $email = $request->input('email');
-        $appUser = config('cipi.app_user');
-
-        if (empty($appUser)) {
+        if (AppHome::user() === null) {
             return response()->json(['error' => 'App user not configured'], 500);
         }
 
-        // Find anonymization config file — must live on the server, outside the project repo
-        $configPaths = [
-            "/home/{$appUser}/.db/anonymization.json",
-            "/home/{$appUser}/.cipi/anonymization.json",
-        ];
-
-        $configPath = null;
-        foreach ($configPaths as $path) {
-            if (file_exists($path)) {
-                $configPath = $path;
-                break;
-            }
-        }
-
-        if (!$configPath) {
+        $configPath = AppHome::anonymizationConfig();
+        if ($configPath === null) {
             return response()->json([
                 'error' => 'Configuration file not found',
-                'message' => 'Place your anonymization.json config file on the server at one of: ' .
-                    implode(', ', $configPaths),
+                'message' => 'Place your anonymization.json on the server at one of: '.implode(', ', AppHome::anonymizationConfigCandidates()).' (php artisan cipi:init-anonymize --scan creates one).',
             ], 404);
         }
 
-        // Validate config file
-        $config = json_decode(file_get_contents($configPath), true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return response()->json([
-                'error' => 'Invalid configuration file',
-                'message' => 'The anonymization.json file contains invalid JSON'
-            ], 400);
+        try {
+            Config::load($configPath);
+        } catch (ConfigException $e) {
+            return response()->json(['error' => 'Invalid configuration', 'message' => 'anonymization.json is not valid', 'details' => $e->errors], 400);
         }
 
-        if (empty($config['transformations'])) {
-            return response()->json([
-                'error' => 'Invalid configuration',
-                'message' => 'No transformations defined in configuration file'
-            ], 400);
-        }
+        $email = (string) $request->input('email');
+        $gzip = $request->has('gzip') ? $request->boolean('gzip') : null;
 
-        // Dispatch the job
-        AnonymizeDatabaseJob::dispatch($email, $configPath);
+        AnonymizeDatabaseJob::dispatch($email, $configPath, null, $gzip);
 
         return response()->json([
             'status' => 'queued',
             'message' => 'Database anonymization job has been queued. You will receive an email with download instructions when complete.',
             'email' => $email,
+            'link_valid_minutes' => (int) config('cipi.anonymizer_ttl', 15),
         ]);
     }
 
     public function downloadAnonymized(Request $request, string $token): Response
     {
-        // Only enable if token is configured
-        if (!config('cipi.anonymizer_enabled')) {
-            abort(403, 'Database anonymizer not configured');
+        if (! config('cipi.anonymizer_enabled')) {
+            abort(404);
         }
-
-        // Find token file
-        $tokenFile = storage_path("cipi/tokens/{$token}.json");
-
-        if (!file_exists($tokenFile)) {
+        if (! preg_match('/^[A-Za-z0-9]{32,128}$/', $token)) {
             abort(404, 'Download token not found or expired');
         }
 
-        // Load token data
-        $tokenData = json_decode(file_get_contents($tokenFile), true);
+        $tokenFile = storage_path("cipi/tokens/{$token}.json");
+        if (! is_file($tokenFile)) {
+            abort(404, 'Download token not found or expired');
+        }
 
-        if (!$tokenData || !isset($tokenData['file_path'])) {
+        $data = json_decode((string) file_get_contents($tokenFile), true);
+        if (! is_array($data) || empty($data['file_path'])) {
             abort(404, 'Invalid download token');
         }
 
-        $filePath = $tokenData['file_path'];
-
-        // Check if file exists
-        if (!file_exists($filePath)) {
+        $filePath = (string) $data['file_path'];
+        if (! str_starts_with(realpath($filePath) ?: '', realpath(storage_path('cipi')) ?: '/-') || ! is_file($filePath)) {
             abort(404, 'Anonymized database file not found');
         }
 
-        // Check expiration
-        if (isset($tokenData['expires_at'])) {
-            $expiresAt = \Carbon\Carbon::parse($tokenData['expires_at']);
-            if (now()->isAfter($expiresAt)) {
-                // Clean up expired token and file
-                unlink($tokenFile);
-                if (file_exists($filePath)) {
-                    unlink($filePath);
-                }
-                abort(410, 'Download link has expired');
-            }
+        if (isset($data['expires_at']) && now()->isAfter(\Carbon\Carbon::parse($data['expires_at']))) {
+            @unlink($tokenFile);
+            @unlink($filePath);
+            abort(410, 'Download link has expired');
         }
 
-        // Serve the file
-        $fileName = 'anonymized_database_' . date('Y-m-d_H-i-s') . '.sql';
+        $gzip = str_ends_with($filePath, '.gz');
+        $fileName = 'anonymized_database_'.date('Y-m-d_H-i-s').'.sql'.($gzip ? '.gz' : '');
 
         return response()->file($filePath, [
-            'Content-Type' => 'application/sql',
-            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
-        ])->deleteFileAfterSend(false); // Keep file for potential re-downloads
+            'Content-Type' => $gzip ? 'application/gzip' : 'application/sql',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+            'Cache-Control' => 'no-store',
+        ]);
     }
 
     public function findUserByEmail(Request $request): JsonResponse
     {
-        // Only enable if token is configured
-        if (!config('cipi.anonymizer_enabled')) {
-            return response()->json([
-                'error' => 'Database anonymizer not configured',
-                'message' => 'Set CIPI_ANONYMIZER_TOKEN in your environment to enable this feature'
-            ], 403);
-        }
-
-        // Validate request
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-        ]);
-
+        $validator = Validator::make($request->all(), ['email' => 'required|email']);
         if ($validator->fails()) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'details' => $validator->errors()
-            ], 422);
+            return response()->json(['error' => 'Validation failed', 'details' => $validator->errors()], 422);
         }
 
-        $email = $request->input('email');
+        $email = (string) $request->input('email');
 
         try {
-            // Find user by email
-            $user = DB::table('users')->where('email', $email)->first();
-
-            if (!$user) {
-                return response()->json([
-                    'error' => 'User not found',
-                    'message' => "No user found with email: {$email}"
-                ], 404);
+            $user = DB::table(config('cipi.anonymizer_users_table', 'users'))->where('email', $email)->first();
+            if (! $user) {
+                return response()->json(['error' => 'User not found', 'message' => "No user found with email: {$email}"], 404);
             }
 
             return response()->json([
-                'user_id' => $user->id,
-                'email' => $user->email,
+                'user_id' => $user->id ?? null,
+                'email' => $user->email ?? $email,
                 'found_at' => now()->toIso8601String(),
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Database query failed',
-                'message' => $e->getMessage()
-            ], 500);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Database query failed', 'message' => $e->getMessage()], 500);
         }
     }
 }

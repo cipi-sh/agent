@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cipi.sh/schema/cipi.schema.json",
+  "title": "cipi.yml",
+  "description": "Declarative configuration of one Cipi app, committed at the root of its repository and applied with `cipi yml apply`. Validate locally with `php artisan cipi:yml validate`. Namespace rules (databases named <app> or <app>_*, backup profiles <app> or <app>-*) and the YAML subset restrictions (no anchors, aliases, tags, merge keys, block scalars or flow mappings) are enforced by the validator, not by this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "php": { "type": "string", "enum": ["8.3", "8.4", "8.5"], "description": "Must already be installed on the server (cipi php install)" },
+        "aliases": {
+          "type": "array", "maxItems": 100, "uniqueItems": true,
+          "description": "Replaces the current aliases. The primary domain is not managed here.",
+          "items": { "type": "string", "pattern": "^(\\*\\.)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\\.[a-zA-Z]{2,}$" }
+        },
+        "ini": {
+          "type": "object", "additionalProperties": false,
+          "description": "Per-app php.ini overrides",
+          "patternProperties": {
+            "^(memory_limit|upload_max_filesize|post_max_size|max_execution_time|max_input_time|max_input_vars|max_file_uploads|default_socket_timeout|date\\.timezone|display_errors|log_errors|output_buffering|zlib\\.output_compression|session\\.gc_maxlifetime|realpath_cache_size|realpath_cache_ttl|expose_php|opcache\\.enable|opcache\\.enable_cli|opcache\\.memory_consumption|opcache\\.interned_strings_buffer|opcache\\.max_accelerated_files|opcache\\.validate_timestamps|opcache\\.revalidate_freq|opcache\\.jit|opcache\\.jit_buffer_size)$": {
+              "oneOf": [ { "type": "boolean" }, { "type": "integer" }, { "type": "string", "pattern": "^[A-Za-z0-9_.,+/-]{1,64}$" } ]
+            }
+          }
+        },
+        "www": { "oneOf": [ { "type": "string", "enum": ["to-root", "from-root", "none"] }, { "const": false }, { "type": "null" } ], "description": "Canonical www redirect; the other name of the pair must be in aliases" },
+        "basic_auth": {
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "users": {
+                  "type": "array", "minItems": 1, "maxItems": 20,
+                  "items": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+                      {
+                        "type": "object", "additionalProperties": false, "required": ["name"],
+                        "properties": {
+                          "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+                          "password_hash": { "type": "string", "description": "bcrypt ($2y$, cost 10+) or SHA-512 crypt ($6$) — never a plain password", "pattern": "^(\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}|\\$6\\$(rounds=[0-9]{4,9}\\$)?[./A-Za-z0-9]{1,16}\\$[./A-Za-z0-9]{86})$" }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "limits": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "memory_limit": { "oneOf": [ { "type": "integer" }, { "type": "string", "pattern": "^[0-9]{1,5}[MmGg]?$" } ] },
+            "fpm_max_children": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "octane_workers": { "type": "integer", "minimum": 1, "maximum": 16 },
+            "worker_procs": { "type": "integer", "minimum": 1, "maximum": 20 }
+          }
+        }
+      }
+    },
+    "databases": {
+      "type": "array", "maxItems": 50,
+      "description": "Extra databases, named <app> or <app>_*. Created, never dropped.",
+      "items": {
+        "oneOf": [
+          { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
+          {
+            "type": "object", "additionalProperties": false, "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
+              "engine": { "type": "string", "enum": ["mariadb", "pgsql", "mysql", "postgres", "postgresql"], "default": "mariadb" }
+            }
+          }
+        ]
+      }
+    },
+    "workers": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "horizon": { "type": "boolean", "description": "true replaces the queue workers" },
+        "reverb": { "type": "boolean", "description": "Laravel Reverb WebSocket server" },
+        "queues": {
+          "type": "array", "maxItems": 20,
+          "items": {
+            "oneOf": [
+              { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+              {
+                "type": "object", "additionalProperties": false, "required": ["queue"],
+                "properties": {
+                  "queue": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+                  "processes": { "type": "integer", "minimum": 1, "maximum": 20, "default": 1 },
+                  "tries": { "type": "integer", "minimum": 1, "maximum": 100, "default": 3 },
+                  "timeout": { "type": "integer", "minimum": 10, "maximum": 86400, "default": 3600 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "schedule": { "type": "boolean", "description": "Laravel scheduler (* * * * * artisan schedule:run)" },
+    "search": { "type": "boolean", "description": "Meilisearch for Laravel Scout (root must have run cipi search install)" },
+    "health": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "url": { "type": "string", "pattern": "^https?://[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]{0,200})?$", "description": "Must be one of the app's own domains" },
+        "expect": { "type": "integer", "minimum": 100, "maximum": 599, "default": 200 },
+        "grace": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "postdeploy": { "type": "boolean" },
+        "rollback_on_unhealthy": { "type": "boolean", "description": "Code symlink only — migrations are not undone" }
+      }
+    },
+    "deploy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "post": {
+          "type": "array", "maxItems": 20,
+          "description": "Allowlisted steps after every successful deploy: artisan, npm/npx/yarn/pnpm, composer, or one relative php/node script",
+          "items": {
+            "oneOf": [
+              { "type": "string", "pattern": "^(artisan|npm|npx|yarn|pnpm|composer|php|node)( [a-zA-Z0-9_@./:=+-]+)*$" },
+              {
+                "type": "object", "additionalProperties": false, "required": ["run"],
+                "properties": {
+                  "run": { "type": "string", "enum": ["artisan", "npm", "npx", "yarn", "pnpm", "composer", "php", "node"] },
+                  "command": { "type": "string", "pattern": "^[a-zA-Z0-9:_-]+$" },
+                  "args": { "type": "array", "maxItems": 32, "items": { "type": ["string", "number", "boolean"] } },
+                  "force": { "type": "boolean" }
+                }
+              },
+              {
+                "type": "object", "minProperties": 1, "maxProperties": 1,
+                "properties": {
+                  "artisan": { "type": ["string", "array"] }, "npm": { "type": ["string", "array"] }, "npx": { "type": ["string", "array"] },
+                  "yarn": { "type": ["string", "array"] }, "pnpm": { "type": ["string", "array"] }, "composer": { "type": ["string", "array"] },
+                  "php": { "type": ["string", "array"] }, "node": { "type": ["string", "array"] }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "post_on_failure": { "type": "string", "enum": ["warn", "abort"], "default": "warn" },
+        "keep_releases": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "migrate": { "type": "boolean" },
+        "optimize": { "type": "boolean" },
+        "storage_link": { "type": "boolean" },
+        "queue_restart": { "type": "boolean" },
+        "horizon_terminate": { "type": "boolean" },
+        "extra_artisan": { "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-zA-Z0-9:_-]+$", "not": { "enum": ["tinker"] } } },
+        "snapshot": { "type": "boolean", "description": "Database snapshot before each deploy" }
+      }
+    },
+    "redirect": {
+      "type": "object", "additionalProperties": false,
+      "description": "Whole-app redirect",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "to": { "type": "string", "pattern": "^https?://" },
+        "code": { "type": "integer", "enum": [301, 302, 307, 308], "default": 301 },
+        "keep_path": { "type": "boolean", "default": true }
+      }
+    },
+    "redirects": {
+      "type": "array", "maxItems": 100,
+      "description": "Path redirects; replaces the current list. A from ending in / is a prefix.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string", "pattern": "^/?[A-Za-z0-9._~/+@:,=-]*$" },
+          "to": { "type": "string" },
+          "code": { "type": "integer", "enum": [301, 302, 307, 308], "default": 301 },
+          "keep_path": { "type": "boolean", "default": true }
+        }
+      }
+    },
+    "proxies": {
+      "type": "array", "maxItems": 20,
+      "description": "Reverse proxy on a prefix; replaces the current list",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["prefix", "upstream"],
+        "properties": {
+          "prefix": { "type": "string", "pattern": "^/?[A-Za-z0-9._~/+@:,=-]*$" },
+          "upstream": { "type": "string", "pattern": "^https?://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~%/+-]*)?$" },
+          "strip_prefix": { "type": "boolean", "default": false },
+          "preserve_host": { "type": "boolean", "default": false },
+          "timeout": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 60 },
+          "buffering": { "type": "boolean", "default": true }
+        }
+      }
+    },
+    "ssl": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "force_https": { "type": "boolean", "description": "Can only be turned on from this file" } }
+    },
+    "env": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "required": { "type": "array", "maxItems": 100, "uniqueItems": true, "description": "Variable names (never values) the .env must carry non-empty", "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" } }
+      }
+    },
+    "crons": {
+      "type": "array", "maxItems": 20,
+      "description": "Scheduled commands through the deploy.post runners; replaces the '# cipi-yml' crontab lines",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["run"],
+        "properties": {
+          "every": { "type": "string", "pattern": "^(5|10|15|20|30)m$|^(1|2|3|4|6|8|12)h$|^([1-9]|1[0-9]|2[0-8])d$" },
+          "cron": { "type": "string", "pattern": "^[0-9*/,\\s-]+$" },
+          "run": { "type": "string", "pattern": "^(artisan|npm|npx|yarn|pnpm|composer|php|node)( [a-zA-Z0-9_@./:=+-]+)*$" }
+        },
+        "oneOf": [ { "required": ["every"] }, { "required": ["cron"] } ]
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "description": "Node apps only; read by each deploy (needs cipi yml auto <app> on)",
+      "properties": {
+        "framework": { "type": "string", "enum": ["next", "nuxt", "sveltekit", "astro", "remix", "vite"] },
+        "mode": { "type": "string", "enum": ["spa", "static", "ssr"] },
+        "version": { "oneOf": [ { "type": "integer", "minimum": 20, "maximum": 98, "multipleOf": 2 }, { "type": "string", "pattern": "^[2-9][02468]$" } ] },
+        "build": { "type": "string", "maxLength": 200, "pattern": "^(node|npm|npx|pnpm|yarn|bun)( [a-zA-Z0-9_./= :&;'\"-]+)*$" },
+        "start": { "type": "string", "pattern": "^(node|npm|npx|pnpm|yarn|bun)( [A-Za-z0-9@._/:=+-]+){1,11}$" },
+        "output": { "type": "string", "pattern": "^[A-Za-z0-9_.][A-Za-z0-9._/-]{0,120}$" },
+        "health_path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]{0,200}$" }
+      }
+    },
+    "backup": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "profiles": {
+          "type": "array", "maxItems": 10,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,31}$", "description": "<app> or <app>-*" },
+              "scope": { "type": "string", "enum": ["all", "files", "db"], "default": "all" },
+              "databases": { "type": "array", "items": { "type": "string", "pattern": "^[a-zA-Z0-9_.*?\\[\\]-]{1,64}$" } },
+              "exclude_databases": { "type": "array", "items": { "type": "string", "pattern": "^[a-zA-Z0-9_.*?\\[\\]-]{1,64}$" } },
+              "exclude_tables": { "type": "array", "items": { "type": "string", "pattern": "^[a-zA-Z0-9_.*?\\[\\]-]{1,128}$" } },
+              "every": { "type": "string", "pattern": "^(5|10|15|20|30)m$|^(1|2|3|4|6|8|12)h$|^([1-9]|1[0-9]|2[0-8])d$" },
+              "cron": { "type": "string", "pattern": "^[0-9*/,\\s-]+$" },
+              "destinations": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["local", "s3"] } },
+              "encrypt": { "type": "boolean" },
+              "keep": { "type": "integer", "minimum": 0, "maximum": 1000 },
+              "keep_days": { "type": "integer", "minimum": 0, "maximum": 3650 },
+              "keep_weeks": { "type": "integer", "minimum": 0, "maximum": 520 }
+            },
+            "anyOf": [ { "required": ["keep"] }, { "required": ["keep_days"] }, { "required": ["keep_weeks"] } ]
+          }
+        }
+      }
+    }
+  }
+}
