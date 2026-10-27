@@ -8,6 +8,7 @@ use Cipi\Agent\Mcp\ToolResult;
 use Cipi\Agent\Support\AppHome;
 use Cipi\Agent\Support\DeployInfo;
 use Cipi\Agent\Support\DeployTrigger;
+use Cipi\Agent\Support\Environment;
 use Cipi\Agent\Support\Redactor;
 use Cipi\Agent\Yml\Locator;
 
@@ -25,7 +26,7 @@ final class DeployStatusTool extends Tool
 
     public function description(): string
     {
-        return 'What is deployed and what is happening: live release and commit, the releases kept for rollback, whether a deploy is queued or running, the outcome of the last automatic deploy (trigger, branch, duration, exit code) and optionally the tail of the deploy log.';
+        return 'What is deployed and what is happening: live release and commit, the deploy branch and the Cipi environment label, the releases kept for rollback, whether a deploy is queued or running, the outcome of the last automatic deploy (trigger, branch, duration, exit code) and optionally the tail of the deploy log.';
     }
 
     public function inputSchema(): array
@@ -52,6 +53,7 @@ final class DeployStatusTool extends Tool
             'commit' => $commit['commit'],
             'commit_source' => $commit['source'],
             'deploy_branch' => config('cipi.deploy_branch') ?: 'any (Deployer config)',
+            'env' => Environment::label(),
             'pending' => DeployTrigger::pending(),
             'in_progress' => DeployTrigger::inProgress(),
             'last_deploy' => DeployInfo::lastDeploy(),

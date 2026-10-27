@@ -19,7 +19,7 @@ final class PanelStatusTool extends PanelTool
 
     public function description(): string
     {
-        return 'Through the Cipi panel API (cipi/sdk): this app as the panel sees it (domain, PHP, repository, branch, workers, Horizon, Reverb, aliases, redirects, limits) and the server snapshot (CPU, RAM, disk, services). Needs a token with apps-view and status-view.';
+        return 'Through the Cipi panel API (cipi/sdk): this app as the panel sees it (domain, PHP, repository, branch, environment label, workers, Horizon, Reverb, aliases, redirects, limits) and the server snapshot (CPU, RAM, disk, services). Needs a token with apps-view and status-view.';
     }
 
     public function annotations(): array

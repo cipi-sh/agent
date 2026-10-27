@@ -8,6 +8,7 @@ use Cipi\Agent\Mcp\ToolResult;
 use Cipi\Agent\Panel\PanelClient;
 use Cipi\Agent\Support\AppHome;
 use Cipi\Agent\Support\DeployInfo;
+use Cipi\Agent\Support\Environment;
 use Cipi\Agent\Yml\Locator;
 
 final class AppInfoTool extends Tool
@@ -24,7 +25,7 @@ final class AppInfoTool extends Tool
 
     public function description(): string
     {
-        return 'Configuration overview of this application: app user, PHP and Laravel versions, environment, drivers (queue, cache, session, database), Cipi endpoints, enabled agent features, the live release and commit, and whether a cipi.yml is present. Secrets are never included.';
+        return 'Configuration overview of this application: app user, PHP and Laravel versions, environment and the Cipi environment label (which cipi-<env>.yml is read first), drivers (queue, cache, session, database), Cipi endpoints, enabled agent features, the live release and commit, and whether a cipi.yml is present. Secrets are never included.';
     }
 
     public function annotations(): array
@@ -61,6 +62,8 @@ final class AppInfoTool extends Tool
             'cipi' => [
                 'home' => AppHome::base(),
                 'deploy_branch' => config('cipi.deploy_branch') ?: 'any',
+                'env' => Environment::label(),
+                'cipi_yml_lookup' => Environment::ymlNames(),
                 'webhook_url' => url("{$prefix}/webhook"),
                 'health_url' => url("{$prefix}/health"),
                 'mcp_url' => url("{$prefix}/mcp"),

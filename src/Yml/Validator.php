@@ -55,6 +55,9 @@ final class Validator
 
     public const LIMIT_BOUNDS = ['fpm_max_children' => [1, 50], 'octane_workers' => [1, 16], 'worker_procs' => [1, 20]];
 
+    /** A git branch name as `cipi app edit --branch` accepts it (validate_git_branch on the server). */
+    public const GIT_BRANCH_RE = '/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,190}$/';
+
     public const TOP_LEVEL_KEYS = ['version', 'app', 'databases', 'workers', 'backup', 'schedule', 'health', 'deploy',
         'redirect', 'redirects', 'proxies', 'search', 'node', 'ssl', 'env', 'crons'];
 
@@ -881,8 +884,21 @@ final class Validator
             return [];
         }
         $this->unknownKeys($m, ['post', 'post_on_failure', 'keep_releases', 'migrate',
-            'optimize', 'storage_link', 'queue_restart', 'horizon_terminate', 'extra_artisan', 'snapshot'], 'deploy');
+            'optimize', 'storage_link', 'queue_restart', 'horizon_terminate', 'extra_artisan', 'snapshot', 'branch'], 'deploy');
         $out = ['post_on_failure' => 'warn', 'post' => []];
+
+        // The git branch the app deploys, reconciled like `cipi app edit --branch`
+        // (same charset: it is substituted into the Deployer config).
+        if (array_key_exists('branch', $m)) {
+            $s = $this->asStr($m['branch'], 'deploy.branch');
+            if ($s !== null) {
+                if (! preg_match(self::GIT_BRANCH_RE, $s) || str_contains($s, '..')) {
+                    $this->err('deploy.branch', 'invalid branch name '.self::repr($s).' (letters, digits, . _ / -, no "..", up to 191 characters)');
+                } else {
+                    $out['branch'] = $s;
+                }
+            }
+        }
 
         if (array_key_exists('post_on_failure', $m)) {
             $s = $this->asStr($m['post_on_failure'], 'deploy.post_on_failure');

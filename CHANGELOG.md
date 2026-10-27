@@ -4,6 +4,23 @@ All notable changes to `cipi/agent` are documented here.
 
 ---
 
+## [2.1.0] — 2026-10-27
+
+Aligned with Cipi 5.8.0, which gives every app an environment label and reads one `cipi.yml` per environment. Backward compatible: nothing changes for apps on older servers.
+
+### Added
+
+- **Environment label** — Cipi 5.8 writes the app's label (`production`, `staging`, …) to the `.env` as `CIPI_ENV` next to `CIPI_DEPLOY_BRANCH`. The agent reports it, read-only, wherever it reports the branch: `cipi:status` (**Cipi Env**), the `app_info` tool (`cipi.env`, with `cipi.cipi_yml_lookup`, the file names Cipi reads in order), the `deploy_status` tool (`env`), the health report (`checks.deploy.env`, next to the new `checks.deploy.branch`) and the webhook answer and log line of a queued deploy (`env`). Resolution: `CIPI_ENV`, then `APP_ENV` (older servers do not set `CIPI_ENV`), then `production`; a value that is not a valid label (`^[a-z0-9][a-z0-9_-]{0,31}$`) is skipped. `Cipi\Agent\Support\Environment` holds the rule.
+- **One `cipi.yml` per environment** — the `Locator` looks for `cipi-<env>.yml` and `cipi-<env>.yaml` before `cipi.yml` / `cipi.yaml`, in the application and in `current/`, `htdocs/` and `shared/` of the app's home, as the server does. `cipi:yml validate|show`, `cipi:status`, the `cipi_yml` and `env_check` tools and the `cipi://cipi.yml` resource therefore read the file Cipi will apply.
+- **`deploy.branch`** in the `cipi.yml` schema: the git branch the app deploys, validated like `cipi app edit --branch` (`^[A-Za-z0-9][A-Za-z0-9._/-]{0,190}$`, no `..`), in the validator, the JSON Schema, the commented template and `cipi:yml generate`, which proposes the app's `CIPI_DEPLOY_BRANCH` as a commented `deploy.branch`. `generate` facts now carry `branch` and `env`.
+
+### Changed
+
+- `cipi:yml generate --write` still writes `cipi.yml`: for a non-production app rename it to `cipi-<env>.yml` when the repository needs one file per environment.
+- MCP server version 2.1.0; `app_info`, `deploy_status` and `panel_status` descriptions mention the environment label.
+
+---
+
 ## [2.0.0] — 2026-10-09
 
 A catch-up release aligned with Cipi 5.5, the Cipi API 1.32 / PHP SDK 1.0 and the current Model Context Protocol revisions. Backward compatible on the wire; see **Upgrading from 1.x** in the README for the behaviour changes.

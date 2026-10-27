@@ -61,6 +61,23 @@ class YamlValidatorTest extends TestCase
         $this->assertSame(['opcache.enable' => 'On', 'max_input_vars' => '5000'], $r->data['app']['ini']);
     }
 
+    public function test_deploy_branch_is_validated_like_cipi_app_edit(): void
+    {
+        $r = Validator::validate("version: 1\ndeploy:\n  branch: release/2026.10\n", 'myapp');
+        $this->assertTrue($r->ok, implode("\n", $r->errors));
+        $this->assertSame('release/2026.10', $r->data['deploy']['branch']);
+
+        $this->assertArrayNotHasKey('branch', Validator::validate("version: 1\ndeploy:\n  keep_releases: 3\n", 'myapp')->data['deploy']);
+
+        foreach (['../main' => '../main', 'feature..x' => 'feature..x', '-lead' => '-lead', 'has space' => 'has space', 'a;b' => 'a;b'] as $branch) {
+            $r = Validator::validate("version: 1\ndeploy:\n  branch: \"{$branch}\"\n", 'myapp');
+            $this->assertSame(["deploy.branch: invalid branch name '{$branch}' (letters, digits, . _ / -, no \"..\", up to 191 characters)"], $r->errors, $branch);
+        }
+        $this->assertSame(['deploy.branch: invalid branch name \''.str_repeat('b', 192).'\' (letters, digits, . _ / -, no "..", up to 191 characters)'], Validator::validate("version: 1\ndeploy:\n  branch: ".str_repeat('b', 192)."\n", 'myapp')->errors);
+        $this->assertSame(['deploy.branch: expected a string'], Validator::validate("version: 1\ndeploy:\n  branch: true\n", 'myapp')->errors);
+        $this->assertStringContainsString('# branch: main', Example::render('shop', 'shop.example.com'));
+    }
+
     public function test_deploy_post_forms(): void
     {
         $r = Validator::validate("version: 1\ndeploy:\n  post:\n    - artisan cache:clear\n    - run: artisan\n      command: migrate\n      force: true\n    - composer: [dump-autoload, -o]\n    - bash -c ls\n    - php /abs.php\n", 'myapp');

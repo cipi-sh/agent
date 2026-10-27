@@ -160,6 +160,8 @@ final class HealthReport
             'commit' => $commit['commit'],
             'short_commit' => $commit['commit'] !== null ? substr($commit['commit'], 0, 7) : null,
             'commit_source' => $commit['source'],
+            'branch' => config('cipi.deploy_branch') ?: null,
+            'env' => Environment::label(),
             'in_progress' => DeployTrigger::inProgress(),
             'pending' => DeployTrigger::pending(),
         ];

@@ -4,6 +4,7 @@ namespace Cipi\Agent\Http\Controllers;
 
 use Cipi\Agent\Support\AppHome;
 use Cipi\Agent\Support\DeployTrigger;
+use Cipi\Agent\Support\Environment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -69,13 +70,15 @@ class WebhookController extends Controller
             return response()->json(['error' => 'Cannot write deploy trigger'], 500);
         }
 
-        $this->log('info', "Deploy queued for '".AppHome::user()."' (provider: {$provider}, branch: ".($pushBranch ?? '?').')');
+        $env = Environment::label();
+        $this->log('info', "Deploy queued for '".AppHome::user()."' (provider: {$provider}, branch: ".($pushBranch ?? '?').", env: {$env})");
 
         return response()->json([
             'status' => 'queued',
             'app' => AppHome::user(),
             'provider' => $provider,
             'branch' => $pushBranch,
+            'env' => $env,
             'commit' => $commit !== '' ? $commit : null,
             'message' => 'Deploy queued. It will start within 1 minute.',
         ]);

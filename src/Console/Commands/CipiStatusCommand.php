@@ -6,6 +6,7 @@ use Cipi\Agent\Mcp\Protocol;
 use Cipi\Agent\Panel\PanelClient;
 use Cipi\Agent\Support\AppHome;
 use Cipi\Agent\Support\DeployInfo;
+use Cipi\Agent\Support\Environment;
 use Cipi\Agent\Yml\Locator;
 use Cipi\Agent\Yml\Validator;
 use Illuminate\Console\Command;
@@ -31,6 +32,7 @@ class CipiStatusCommand extends Command
             ['PHP Version', config('cipi.php_version', PHP_VERSION)],
             ['Laravel', app()->version()],
             ['Environment', app()->environment()],
+            ['Cipi Env', Environment::label().' (reads '.Environment::ymlNames()[0].' before cipi.yml)'],
             ['Webhook', config('cipi.webhook_token') ? '✓ configured' : '✗ not set'],
             ['Webhook URL', url("{$prefix}/webhook")],
             ['Deploy Branch', config('cipi.deploy_branch') ?? 'any (uses Deployer config)'],

@@ -21,7 +21,7 @@ class WebhookTest extends TestCase
     public function test_github_push_queues_deploy_with_claims(): void
     {
         $r = $this->github(['ref' => 'refs/heads/main', 'after' => 'abcdef1234567890abcdef1234567890abcdef12', 'pusher' => ['name' => 'octocat']]);
-        $r->assertOk()->assertJsonPath('status', 'queued')->assertJsonPath('branch', 'main')->assertJsonPath('provider', 'github');
+        $r->assertOk()->assertJsonPath('status', 'queued')->assertJsonPath('branch', 'main')->assertJsonPath('provider', 'github')->assertJsonPath('env', 'staging');
 
         $meta = json_decode(file_get_contents("{$this->home}/.deploy-trigger"), true);
         $this->assertSame('github', $meta['source']);

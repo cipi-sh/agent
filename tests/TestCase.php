@@ -52,6 +52,7 @@ abstract class TestCase extends Orchestra
         $app['config']->set('cipi.anonymizer_enabled', true);
         $app['config']->set('cipi.anonymizer_token', 'cipi_anonymizer_testtoken');
         $app['config']->set('cipi.deploy_branch', 'main');
+        $app['config']->set('cipi.env', 'staging'); // CIPI_ENV, as Cipi 5.8 writes it
     }
 
     protected function buildHome(): void

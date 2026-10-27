@@ -111,6 +111,7 @@ search: false
 # no free-form scripts. post runs on both 'cipi deploy' and the Git webhook
 # and does not require 'cipi yml auto'.
 deploy:
+  # branch: main              # the git branch the app deploys (cipi app edit --branch)
   # keep_releases: 5          # releases kept for rollback (1-20)
   # migrate: false            # skip artisan:migrate in the recipe
   # optimize: true            # artisan:optimize after vendors

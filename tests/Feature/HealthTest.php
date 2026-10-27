@@ -19,6 +19,8 @@ class HealthTest extends TestCase
             ->assertJsonPath('checks.queue.ok', true)
             ->assertJsonPath('checks.deploy.release', '20260102120000')
             ->assertJsonPath('checks.deploy.short_commit', '0123456')
+            ->assertJsonPath('checks.deploy.branch', 'main')
+            ->assertJsonPath('checks.deploy.env', 'staging')
             ->assertJsonPath('checks.deploy.last_deploy.status', 'ok');
         $this->assertFalse($r->json('checks.app.maintenance'));
     }

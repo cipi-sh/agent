@@ -84,6 +84,7 @@ php artisan cipi:status
 | `CIPI_HOME`                    | `/home/<app_user>`       | Override the app home directory                                          |
 | `CIPI_PHP_VERSION`             | system PHP               | PHP version assigned by Cipi (set by Cipi)                               |
 | `CIPI_DEPLOY_BRANCH`           | `null`                   | Only deploy pushes to this branch (`null` = any)                         |
+| `CIPI_ENV`                     | `APP_ENV`, else `production` | Environment label of the app (set by Cipi 5.8); `cipi-<env>.yml` is read before `cipi.yml` |
 | `CIPI_ROUTE_PREFIX`            | `cipi`                   | URL prefix for all agent routes                                          |
 | `CIPI_LOG_CHANNEL`             | `null`                   | Log channel for deploy events                                            |
 | `CIPI_HEALTH_CHECK`            | `true`                   | Enable the health endpoint                                               |
@@ -128,7 +129,7 @@ The endpoint verifies the push, then drops `~/.deploy-trigger`. The app's cronta
 | Gitea        | `X-Gitea-Signature`                          | `push`                                  |
 | Azure DevOps | `X-Gitlab-Token` (as registered by Cipi)     | `git.push`                              |
 
-Other events are acknowledged with `202 ignored`. With `CIPI_DEPLOY_BRANCH` set, pushes to other branches get `200 skipped`.
+Other events are acknowledged with `202 ignored`. With `CIPI_DEPLOY_BRANCH` set, pushes to other branches get `200 skipped`. A queued deploy answers with the branch and the app's environment label (`env`, see below), which the log line carries too.
 
 **Audit ledger.** The trigger file carries what the payload said about the push — provider, actor, commit, delivery id and the client IP. Cipi records these under `claimed` in the root-owned, hash-chained deploy audit ledger (`cipi deploy <app> --audit`), next to the facts root establishes itself. The same format is used by the MCP `deploy` tool (`source: mcp`), so every deploy says who asked for it.
 
@@ -198,9 +199,9 @@ php artisan cipi:mcp          # endpoint, tools and ready-to-paste client config
 | Tool             | Mode            | What it does                                                                                                           |
 | ---------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `health`         | read-only       | Same report as `/cipi/health`                                                                                          |
-| `app_info`       | read-only       | Versions, drivers, Cipi endpoints, enabled features, live release and commit (no secrets)                               |
+| `app_info`       | read-only       | Versions, drivers, environment label and the `cipi-<env>.yml` lookup, Cipi endpoints, enabled features, live release and commit (no secrets) |
 | `deploy`         | action          | Queue a zero-downtime deploy; records `actor`, `ref`, `request_id` as audit claims; refuses while a deploy is running   |
-| `deploy_status`  | read-only       | Live release and commit, releases kept for rollback, queued/running state, last deploy outcome, deploy log tail        |
+| `deploy_status`  | read-only       | Live release and commit, deploy branch and environment label, releases kept for rollback, queued/running state, last deploy outcome, deploy log tail |
 | `logs`           | read-only       | `laravel`, `nginx`, `php`, `worker`, `horizon`, `reverb`, `deploy` or `all`; severity and keyword filters; redacted    |
 | `artisan`        | can change data | Run an Artisan command; interactive, long-running and data-destroying commands are blocked                             |
 | `db_query`       | configurable    | SELECT/WITH/SHOW/DESCRIBE/EXPLAIN as table or JSON (auto-capped); INSERT/UPDATE/DELETE unless `CIPI_MCP_DB_WRITE=false` |
@@ -245,7 +246,9 @@ php artisan cipi:yml example --write       # the commented template, in the app'
 php artisan cipi:yml schema --write        # JSON Schema for editor autocompletion
 ```
 
-`generate` looks at the application itself: Horizon or plain queue workers (`QUEUE_CONNECTION`), Reverb, Scout with Meilisearch, scheduled tasks, the `/up` health route, `CIPI_PHP_VERSION`, extra databases in the app namespace and the credential-looking keys of `.env.example` for `env.required`. The output is run through the validator before it is returned. `cipi yml generate <app>` on the server remains the source of truth for what is configured *today*.
+`generate` looks at the application itself: Horizon or plain queue workers (`QUEUE_CONNECTION`), Reverb, Scout with Meilisearch, scheduled tasks, the `/up` health route, `CIPI_PHP_VERSION`, extra databases in the app namespace, the credential-looking keys of `.env.example` for `env.required` and the deploy branch (`CIPI_DEPLOY_BRANCH`) as a commented `deploy.branch`. The output is run through the validator before it is returned. `cipi yml generate <app>` on the server remains the source of truth for what is configured *today*.
+
+**One file per environment.** Cipi 5.8 gives every app an environment label (`cipi app create --env staging`, `cipi app edit --env`; `production` by default) and writes it to the app's `.env` as `CIPI_ENV`. For an app labelled `staging` the server reads `cipi-staging.yml` (or `.yaml`) first and falls back to `cipi.yml`, so a repository deployed to a staging app and a production app can carry `cipi-staging.yml` next to `cipi.yml` (or `cipi-production.yml`). The agent looks the same way — `cipi:yml validate|show`, `cipi:status`, the `cipi_yml` and `env_check` tools and the `cipi://cipi.yml` resource all pick the environment's file when there is one — and reports the label (`CIPI_ENV`, then `APP_ENV`, then `production`) in `cipi:status`, `app_info`, `deploy_status`, the health report and the webhook answer. The agent never changes it. `deploy.branch` names the git branch the app deploys (validated like `cipi app edit --branch`), so each environment's file can name its own.
 
 For editor validation add this as the first line of `cipi.yml` after `cipi:yml schema --write`:
 
@@ -387,7 +390,7 @@ The tools appear automatically when the SDK is installed and `CIPI_BASE_URL`/`CI
 
 | Command | Description |
 | ------- | ----------- |
-| `cipi:status` | Agent configuration, release and commit, feature state, `cipi.yml` validity, database connectivity |
+| `cipi:status` | Agent configuration, environment label, release and commit, feature state, `cipi.yml` validity, database connectivity |
 | `cipi:deploy-key` | Print the SSH deploy key of the app |
 | `cipi:mcp [--json]` | MCP endpoint, tools, resources and client configuration snippets |
 | `cipi:generate-token {mcp\|health\|anonymize}` | Generate a token and write it to `.env` |

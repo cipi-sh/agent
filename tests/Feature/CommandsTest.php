@@ -2,7 +2,10 @@
 
 namespace Cipi\Agent\Tests\Feature;
 
+use Cipi\Agent\Support\Environment;
 use Cipi\Agent\Tests\TestCase;
+use Cipi\Agent\Yml\Generator;
+use Cipi\Agent\Yml\Locator;
 use Cipi\Agent\Yml\Validator;
 use Illuminate\Support\Facades\Schema;
 
@@ -70,8 +73,71 @@ class CommandsTest extends TestCase
 
     public function test_status_and_mcp_commands_run(): void
     {
-        $this->artisan('cipi:status')->assertExitCode(0);
+        // one substring per line: a write satisfies only the first expectation it matches
+        $this->artisan('cipi:status')
+            ->expectsOutputToContain('| Cipi Env      | staging (reads cipi-staging.yml before cipi.yml)')
+            ->assertExitCode(0);
         $this->artisan('cipi:mcp')->assertExitCode(0);
         $this->artisan('cipi:mcp --json')->assertExitCode(0);
+    }
+
+    public function test_environment_label_falls_back_to_app_env_then_production(): void
+    {
+        $this->assertSame('staging', Environment::label());
+        $this->assertSame(['cipi-staging.yml', 'cipi-staging.yaml', 'cipi.yml', 'cipi.yaml'], Environment::ymlNames());
+
+        config(['cipi.env' => null]);
+        $this->assertSame('testing', Environment::label()); // APP_ENV of the test app
+
+        config(['cipi.env' => 'Not A Label']);
+        $this->assertSame('testing', Environment::label()); // an invalid CIPI_ENV is skipped
+
+        config(['cipi.env' => 'qa-2']);
+        $this->assertSame('qa-2', Environment::label());
+        $this->assertTrue(Environment::valid('production'));
+        $this->assertFalse(Environment::valid('Prod'));
+        $this->assertFalse(Environment::valid(str_repeat('a', 33)));
+        $this->assertFalse(Environment::valid('-staging'));
+    }
+
+    public function test_the_environments_own_cipi_yml_is_read_before_cipi_yml(): void
+    {
+        $plain = base_path('cipi.yml');
+        $staging = base_path('cipi-staging.yml');
+        @unlink($plain);
+        @unlink($staging);
+
+        try {
+            $this->assertSame([$staging, base_path('cipi-staging.yaml'), $plain, base_path('cipi.yaml')], array_slice(Locator::candidates(), 0, 4));
+            $this->assertContains("{$this->home}/current/cipi-staging.yml", Locator::candidates());
+            $this->assertContains("{$this->home}/shared/cipi-staging.yml", Locator::candidates());
+
+            file_put_contents($plain, "version: 1\napp:\n  php: \"8.4\"\n");
+            $this->assertSame($plain, Locator::find());
+
+            file_put_contents($staging, "version: 1\ndeploy:\n  branch: develop\n");
+            $this->assertSame($staging, Locator::find());
+            $this->artisan('cipi:yml validate')->expectsOutputToContain('cipi-staging.yml')->assertExitCode(0);
+
+            // a production app (or an older server without CIPI_ENV and APP_ENV=production) reads cipi.yml
+            config(['cipi.env' => 'production']);
+            $this->assertSame($plain, Locator::find());
+        } finally {
+            @unlink($plain);
+            @unlink($staging);
+        }
+    }
+
+    public function test_generate_offers_the_deploy_branch(): void
+    {
+        $yaml = Generator::generate('myapp')['yaml'];
+        $this->assertStringContainsString('  # branch: "main"', $yaml);
+        $this->assertStringContainsString('cipi-staging.yml, cipi-production.yml', $yaml);
+        $this->assertSame('main', Generator::facts('myapp')['branch']);
+        $this->assertSame('staging', Generator::facts('myapp')['env']);
+
+        config(['cipi.deploy_branch' => 'bad..branch']);
+        $this->assertNull(Generator::facts('myapp')['branch']);
+        $this->assertStringContainsString('  # branch: "main"', Generator::generate('myapp')['yaml']);
     }
 }

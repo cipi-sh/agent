@@ -47,6 +47,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Environment Label
+    |--------------------------------------------------------------------------
+    |
+    | The label Cipi gives the app (production, staging, …): CIPI_ENV, written
+    | by Cipi 5.8 next to CIPI_DEPLOY_BRANCH. Informational: the agent reports
+    | it and looks for cipi-<label>.yml before cipi.yml, as the server does.
+    | Older servers do not set it: APP_ENV, then "production", stand in.
+    |
+    */
+    'env' => env('CIPI_ENV', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Deploy Script Path / Branch Filter
     |--------------------------------------------------------------------------
     */

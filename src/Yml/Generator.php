@@ -3,6 +3,7 @@
 namespace Cipi\Agent\Yml;
 
 use Cipi\Agent\Support\AppHome;
+use Cipi\Agent\Support\Environment;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Route;
 
@@ -80,7 +81,17 @@ final class Generator
             'env_required' => self::envRequired(),
             'npm_build' => self::hasNpmScript('build'),
             'octane' => self::hasPackage('laravel/octane') || (string) config('octane.server', '') !== '',
+            'branch' => self::branch(),
+            'env' => Environment::label(),
         ];
+    }
+
+    /** The branch the app deploys (CIPI_DEPLOY_BRANCH), when it is a usable branch name. */
+    private static function branch(): ?string
+    {
+        $branch = config('cipi.deploy_branch');
+
+        return is_string($branch) && preg_match(Validator::GIT_BRANCH_RE, $branch) && ! str_contains($branch, '..') ? $branch : null;
     }
 
     /**
@@ -210,6 +221,9 @@ final class Generator
         $o[] = '# Deploy recipe options (cipi app deploy-config) and post-deploy steps.';
         $o[] = '# Only declared keys are reconciled.';
         $o[] = 'deploy:';
+        $o[] = '  # The git branch the app deploys (cipi app edit --branch). With one file per';
+        $o[] = '  # environment (cipi-staging.yml, cipi-production.yml) each can name its own.';
+        $o[] = '  # branch: '.$q($f['branch'] ?? 'main');
         $o[] = '  # keep_releases: 5';
         $o[] = '  # migrate: true';
         $o[] = '  # optimize: true';

@@ -60,12 +60,26 @@ class McpToolsTest extends TestCase
         $this->assertTrue($result['structuredContent']['in_progress']);
     }
 
+    public function test_app_info_reports_the_environment_label_and_the_files_cipi_reads(): void
+    {
+        $info = $this->callTool('app_info')['structuredContent'];
+        $this->assertSame('myapp', $info['app_user']);
+        $this->assertSame('main', $info['cipi']['deploy_branch']);
+        $this->assertSame('staging', $info['cipi']['env']);
+        $this->assertSame(['cipi-staging.yml', 'cipi-staging.yaml', 'cipi.yml', 'cipi.yaml'], $info['cipi']['cipi_yml_lookup']);
+        $this->assertSame('20260102120000', $info['deploy']['release']);
+        $this->assertSame(\Cipi\Agent\Mcp\Protocol::SERVER_VERSION, $info['agent_version']);
+        $this->assertArrayNotHasKey('mcp_token', $info['cipi']);
+    }
+
     public function test_deploy_status(): void
     {
         $s = $this->callTool('deploy_status', ['log_lines' => 10])['structuredContent'];
         $this->assertSame('20260102120000', $s['release']);
         $this->assertSame('0123456789abcdef0123456789abcdef01234567', $s['commit']);
         $this->assertSame('REVISION', $s['commit_source']);
+        $this->assertSame('main', $s['deploy_branch']);
+        $this->assertSame('staging', $s['env']);
         $this->assertCount(2, $s['releases']);
         $this->assertTrue($s['releases'][0]['current']);
         $this->assertSame('ok', $s['last_deploy']['status']);
