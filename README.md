@@ -380,7 +380,7 @@ CIPI_TOKEN=...
 | `panel_deploy_audit` | Hash-chained deploy audit ledger (`--audit`)               | `deploy-manage` |
 | `panel_rollback`     | `cipi deploy --rollback` (code only, migrations stay)      | `deploy-manage` |
 | `panel_db_backup`    | `cipi db backup` server-side snapshot                      | `dbs-manage`    |
-| `panel_job`          | Status, result and output of an asynchronous panel job     | any             |
+| `panel_job`          | Status, result and output of an asynchronous panel job     | the job's own (API 1.36.1+) |
 
 The tools appear automatically when the SDK is installed and `CIPI_BASE_URL`/`CIPI_TOKEN` are set (`CIPI_PANEL=false` hides them). Both packages read `config/cipi.php`; publish the agent's copy with `--tag=cipi-agent-config`.
 
