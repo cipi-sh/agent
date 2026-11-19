@@ -47,7 +47,7 @@ Everything is configured through environment variables. When you create an appli
 
 | Requirement | Version                                                   |
 | ----------- | --------------------------------------------------------- |
-| PHP         | 8.3 or higher                                             |
+| PHP         | 8.3, 8.4, 8.5 or 8.6                                      |
 | Laravel     | 12 or 13                                                  |
 | Database    | MySQL / MariaDB or PostgreSQL (for the anonymizer)        |
 | CLI tools   | `mysqldump` (or `mariadb-dump`) / `pg_dump` on the server |
@@ -438,7 +438,7 @@ composer install
 composer test
 ```
 
-The suite runs on Orchestra Testbench with an in-memory SQLite database and a fake app home; the `cipi.yml` validator is additionally checked against the server's Python validator on a corpus of valid and invalid files.
+The suite runs on Orchestra Testbench with an in-memory SQLite database and a fake app home; the `cipi.yml` validator is additionally checked against the server's Python validator on a corpus of valid and invalid files. It is verified on PHP 8.5 and PHP 8.6 (8.6 also with `--fail-on-deprecation`); on PHP 8.6 run `composer update` first, as older lock files pin transitive dependencies (`nette/schema`, `nette/utils`) that capped PHP at 8.5.
 
 ---
 

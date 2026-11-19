@@ -6,11 +6,12 @@ All notable changes to `cipi/agent` are documented here.
 
 ## [2.1.1] — 2026-11-19
 
-Aligned with Cipi 5.9.1, which accepts PHP 8.6.
+Aligned with Cipi 5.9.1, which accepts PHP 8.6. The agent itself now also runs on PHP 8.6.
 
 ### Added
 
 - **`app.php: "8.6"`** in the `cipi.yml` schema: the validator (`Validator::PHP_VERSIONS`), the JSON Schema (`resources/schema/cipi.schema.json`) and the comments of the template and of `cipi:yml generate`. The error for a version outside the list reads `app.php: must be one of 8.3, 8.4, 8.5, 8.6`, as on the server. A server older than Cipi 5.9.1 still refuses 8.6 when it applies the file: `cipi:yml validate` says what the current schema allows, not what a given server runs. The template keeps `php: "8.5"`.
+- **PHP 8.6 runtime support** — the package installs and runs on PHP 8.6: `composer.json` already requires `"php": "^8.3"`, which permits 8.6, so no constraint changes. A fresh resolution on 8.6 picks `nette/schema` 1.4.0 / `nette/utils` 4.1.6 (via `league/commonmark` → `league/config`); older lock files pin versions of those two that capped PHP at 8.5 and fail `composer check-platform-reqs` on 8.6, so run `composer update` when moving an existing checkout to 8.6 (`composer.lock` is not shipped with the package). No source changes were needed: nothing in `src/` uses APIs deprecated or removed in PHP 8.5/8.6.
 
 ### Changed
 
@@ -18,7 +19,7 @@ Aligned with Cipi 5.9.1, which accepts PHP 8.6.
 
 ### Verified
 
-- The test suite on PHP 8.6.0RC5 (the build at hand on the day 8.6.0 was released; not run on 8.6.0), next to 8.5.
+- The test suite (50 tests) on PHP 8.6.0RC5 (the build at hand on the day 8.6.0 was released; not run on 8.6.0), next to 8.5 — on 8.6 also with `--fail-on-deprecation` and `error_reporting=E_ALL`, every file linted with the 8.6 binary, and `composer check-platform-reqs` passing after `composer update`.
 
 ---
 
