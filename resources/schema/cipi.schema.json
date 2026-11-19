@@ -12,7 +12,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "php": { "type": "string", "enum": ["8.3", "8.4", "8.5"], "description": "Must already be installed on the server (cipi php install)" },
+        "php": { "type": "string", "enum": ["8.3", "8.4", "8.5", "8.6"], "description": "Must already be installed on the server (cipi php install). 8.6 needs Cipi 5.9.1+" },
         "aliases": {
           "type": "array", "maxItems": 100, "uniqueItems": true,
           "description": "Replaces the current aliases. The primary domain is not managed here.",

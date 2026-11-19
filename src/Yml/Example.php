@@ -35,7 +35,7 @@ final class Example
 version: 1
 
 app:
-  # 8.3, 8.4 or 8.5 — must already be installed (cipi php install 8.5)
+  # 8.3, 8.4, 8.5 or 8.6 — must already be installed (cipi php install 8.5)
   php: "8.5"
 
   # The declared list replaces the current aliases: an alias you remove here

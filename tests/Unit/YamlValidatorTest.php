@@ -42,7 +42,7 @@ class YamlValidatorTest extends TestCase
         $this->assertSame([
             'cipi.yml.foo: unknown key (allowed: app, backup, crons, databases, deploy, env, health, node, proxies, redirect, redirects, schedule, search, ssl, version, workers)',
             'app.www: must be one of from-root, none, to-root',
-            'app.php: must be one of 8.3, 8.4, 8.5',
+            'app.php: must be one of 8.3, 8.4, 8.5, 8.6',
             "databases[0].name: must be 'myapp' or start with 'myapp_' — a project file cannot claim databases outside its own namespace",
             'workers: horizon and queues are mutually exclusive — Horizon replaces queue:work workers',
         ], $r->errors);
@@ -59,6 +59,17 @@ class YamlValidatorTest extends TestCase
         $this->assertFalse($r->data['search']);
         $this->assertSame('8.4', $r->data['app']['php']);
         $this->assertSame(['opcache.enable' => 'On', 'max_input_vars' => '5000'], $r->data['app']['ini']);
+    }
+
+    public function test_php_8_6_is_accepted_in_the_validator_and_in_the_json_schema(): void
+    {
+        $r = Validator::validate("version: 1\napp:\n  php: \"8.6\"\n", 'myapp');
+        $this->assertTrue($r->ok, implode("\n", $r->errors));
+        $this->assertSame('8.6', $r->data['app']['php']);
+
+        $schema = json_decode((string) file_get_contents(dirname(__DIR__, 2).'/resources/schema/cipi.schema.json'), true);
+        $this->assertSame(Validator::PHP_VERSIONS, $schema['properties']['app']['properties']['php']['enum']);
+        $this->assertStringContainsString('# 8.3, 8.4, 8.5 or 8.6', Example::render('shop', 'shop.example.com'));
     }
 
     public function test_deploy_branch_is_validated_like_cipi_app_edit(): void

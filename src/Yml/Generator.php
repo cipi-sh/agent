@@ -123,7 +123,7 @@ final class Generator
             $o[] = '  # PHP version assigned to the app (CIPI_PHP_VERSION). Must be installed on the server.';
             $o[] = '  php: '.$q($f['php']);
         } else {
-            $o[] = '  # 8.3, 8.4 or 8.5 — must already be installed (cipi php install 8.5)';
+            $o[] = '  # 8.3, 8.4, 8.5 or 8.6 — must already be installed (cipi php install 8.5)';
             $o[] = '  # php: "8.4"';
         }
         $o[] = '';

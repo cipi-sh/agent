@@ -4,6 +4,24 @@ All notable changes to `cipi/agent` are documented here.
 
 ---
 
+## [2.1.1] — 2026-11-19
+
+Aligned with Cipi 5.9.1, which accepts PHP 8.6.
+
+### Added
+
+- **`app.php: "8.6"`** in the `cipi.yml` schema: the validator (`Validator::PHP_VERSIONS`), the JSON Schema (`resources/schema/cipi.schema.json`) and the comments of the template and of `cipi:yml generate`. The error for a version outside the list reads `app.php: must be one of 8.3, 8.4, 8.5, 8.6`, as on the server. A server older than Cipi 5.9.1 still refuses 8.6 when it applies the file: `cipi:yml validate` says what the current schema allows, not what a given server runs. The template keeps `php: "8.5"`.
+
+### Changed
+
+- MCP server version 2.1.1.
+
+### Verified
+
+- The test suite on PHP 8.6.0RC5 (the build at hand on the day 8.6.0 was released; not run on 8.6.0), next to 8.5.
+
+---
+
 ## [2.1.0] — 2026-10-27
 
 Aligned with Cipi 5.8.0, which gives every app an environment label and reads one `cipi.yml` per environment. Backward compatible: nothing changes for apps on older servers.

@@ -16,7 +16,8 @@ namespace Cipi\Agent\Yml;
  */
 final class Validator
 {
-    public const PHP_VERSIONS = ['8.3', '8.4', '8.5'];
+    /** 8.6 is accepted by the server from Cipi 5.9.1. */
+    public const PHP_VERSIONS = ['8.3', '8.4', '8.5', '8.6'];
 
     public const ENGINES = ['mariadb', 'pgsql'];
 

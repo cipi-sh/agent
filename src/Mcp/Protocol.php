@@ -27,7 +27,7 @@ final class Protocol
 
     public const SERVER_TITLE = 'Cipi Agent';
 
-    public const SERVER_VERSION = '2.1.0';
+    public const SERVER_VERSION = '2.1.1';
 
     public const WEBSITE = 'https://cipi.sh/docs/agent';
 
